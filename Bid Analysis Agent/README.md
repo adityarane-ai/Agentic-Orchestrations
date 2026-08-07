@@ -202,6 +202,11 @@ The system consists of six major modules.
                │
                ▼
 ┌──────────────────────────────┐
+│ Evaluation Configuration     │
+└──────────────┬───────────────┘
+               │
+               ▼
+┌──────────────────────────────┐
 │ Supplier Processing          │
 └──────────────┬───────────────┘
                │
