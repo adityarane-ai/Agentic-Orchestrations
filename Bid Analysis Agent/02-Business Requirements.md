@@ -176,6 +176,40 @@ The system shall extract knockout requirements.
 The system shall preserve workbook structure.
 
 ---
+### FR-030
+
+The system shall allow review of extracted evaluation criteria before supplier evaluation begins.
+
+---
+
+### FR-031
+
+The system shall allow configuration of knockout questions.
+
+---
+
+### FR-032
+
+The system shall allow specification of the expected answer for every knockout question.
+
+---
+
+### FR-033
+
+The system shall allow modification of evaluation weights before supplier evaluation.
+
+---
+
+### FR-034
+
+The system shall support excluding questions from evaluation.
+
+---
+
+### FR-035
+
+The finalized evaluation configuration shall be used by the Evaluation Engine.
+
 
 # Supplier Processing
 
