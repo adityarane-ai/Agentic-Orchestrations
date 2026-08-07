@@ -215,6 +215,24 @@ criteria
 ```
 
 ---
+## 2.a. Evaluation Configuration becomes a first-class module.
+
+Responsibilities
+
+- Review extracted criteria
+- Configure knockout rules
+- Configure expected answers
+- Configure weights
+- Exclude questions
+- Finalize evaluation settings
+
+Outputs:
+
+```
+
+evaluationConfiguration
+
+```
 
 ## 3. Supplier Processing Module
 
