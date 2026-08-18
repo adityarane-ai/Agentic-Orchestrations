@@ -1,8 +1,8 @@
 # 03. Solution Overview
 
-**Document Version:** 0.1
+**Document Version:** 0.2
 
-**Status:** Draft
+**Status:** Updated for Floor-User UX
 
 **Parent Document:** Software Design Specification (SDS)
 
@@ -10,11 +10,11 @@
 
 # Purpose
 
-This document provides a high-level architectural overview of the RFP Qualitative Evaluation Agent.
+This chapter provides the high-level architectural overview of the RFP Qualitative Evaluation Agent, including the new **File Intake and Discovery** capability required for deployment to users on the procurement floor.
 
-It explains how the overall solution is structured, how individual modules interact, how information flows through the system, and why specific architectural decisions were made.
+The user experience is intentionally schema-agnostic. Users may upload the Excel files available to them without knowing the agent's internal workbook templates, filenames, sheet names or column conventions.
 
-This chapter intentionally avoids implementation details. Those are covered in later chapters.
+The architecture remains internally schema-driven, canonical and deterministic wherever possible.
 
 ---
 
@@ -22,158 +22,252 @@ This chapter intentionally avoids implementation details. Those are covered in l
 
 The RFP Qualitative Evaluation Agent is an enterprise-grade conversational AI application designed to automate qualitative supplier evaluation while preserving consultant-level analytical quality.
 
-The solution is composed of several independent modules coordinated by a central **Supervisor Agent**.
+The solution is composed of independent modules coordinated by a central **Supervisor Agent**.
 
-Unlike traditional workflow automation systems, the Supervisor does not perform evaluation itself.
+A new **File Intake and Discovery** capability sits between the conversational layer and business processing modules. It interprets uploaded workbooks and identifies their likely business roles before downstream processing begins.
 
-Instead, it manages:
+The Supervisor manages:
 
 - conversation
 - workflow state
 - user guidance
-- orchestration
+- file collection
+- routing
 - handoffs
 - session lifecycle
 
-The actual evaluation work is delegated to specialized processing modules.
+The File Intake and Discovery layer manages:
+
+- workbook discovery
+- file classification
+- sheet classification
+- supplier identification
+- evaluation-framework identification
+- structural discovery
+- confidence assessment
+- ambiguity detection
+
+The actual procurement evaluation remains delegated to specialized processing and evaluation modules.
 
 ---
 
 # Architectural Philosophy
 
-The architecture follows six fundamental principles.
-
 ## Principle 1 — Separation of Concerns
 
-Conversation management is intentionally separated from procurement evaluation.
+Conversation management, file interpretation and procurement evaluation remain separate responsibilities.
 
-The Supervisor is responsible only for:
+The Supervisor manages the user journey.
 
-- interacting with the user
-- collecting inputs
-- determining workflow state
-- routing work
+File Intake and Discovery determines what the uploaded information represents.
 
-The Evaluation Engine is responsible only for supplier evaluation.
-
-This separation minimizes coupling between business logic and conversational behaviour.
+The Evaluation Engine evaluates normalized procurement data.
 
 ---
 
-## Principle 2 — Modular Design
+## Principle 2 — Zero-Template User Experience
 
-Each module performs exactly one business responsibility.
+Users should provide data rather than understand the system's internal data model.
 
-Modules communicate only through well-defined data contracts.
+The system shall not require users to:
 
-No module should directly manipulate another module's internal logic.
+- rename files
+- use prescribed sheet names
+- use prescribed column names
+- create a specific workbook template
+- split information into specific files when it can be interpreted without doing so
+
+The internal canonical model remains strict even though the external input experience is flexible.
 
 ---
 
-## Principle 3 — Canonical Data
+## Principle 3 — Progressive Disclosure
 
-Every downstream component consumes the same canonical representation of supplier evaluation data.
+The system should infer information whenever it can do so reliably.
 
-Raw supplier responses are never evaluated directly.
-
-Instead:
-
-Raw Supplier Data
-
-↓
-
-Validation
-
-↓
-
-Canonical Mapping
-
-↓
-
-Evaluation
-
-↓
-
-Reporting
-
-This guarantees consistency throughout the workflow.
+The user should only be asked for clarification when ambiguity is material to the evaluation outcome.
 
 ---
 
 ## Principle 4 — Deterministic First
 
-Where deterministic algorithms exist, deterministic algorithms shall always be preferred over LLM reasoning.
+Where deterministic algorithms exist, deterministic algorithms shall be preferred.
 
-Examples include:
+LLMs are used for semantic interpretation such as identifying business meaning from varied workbook structures.
 
-- validation
-- ranking
-- weighting
-- report generation
-- sorting
-- aggregation
-
-LLMs are reserved for semantic interpretation only.
+Scripts remain authoritative for validation, calculations, ranking and other deterministic business rules.
 
 ---
 
-## Principle 5 — Explainable AI
+## Principle 5 — Canonical Data
 
-Every recommendation produced by the system must be traceable.
+Every downstream evaluation component consumes the same normalized canonical representation.
 
-Users must always be able to answer:
-
-- Why did Supplier A score higher?
-- Why was Supplier B eliminated?
-- Which response contributed to the final score?
-- Which evidence was considered?
-
-The system should never behave as an opaque decision engine.
+```text
+Raw Files
+   ↓
+File Discovery
+   ↓
+Semantic Extraction
+   ↓
+Normalized Objects
+   ↓
+Validation
+   ↓
+Canonical Mapping
+   ↓
+Evaluation
+   ↓
+Reporting
+```
 
 ---
 
-## Principle 6 — Production-Oriented Engineering
+## Principle 6 — Explainability
 
-The architecture is designed for production deployment.
+Every material procurement decision must remain traceable to source evidence and evaluation rules.
+
+File interpretation itself must also retain provenance and confidence so that downstream decisions do not depend on invisible assumptions.
+
+---
+
+## Principle 7 — Production-Oriented Engineering
 
 Priority is given to:
 
+- reliability
 - maintainability
 - scalability
 - observability
 - fault isolation
-- deterministic behaviour
+- testability
+- auditability
 
-rather than minimizing node count.
+The architecture is not optimized merely for minimum node count.
 
 ---
 
 # High-Level Architecture
 
-The solution consists of six primary modules.
-
+```text
+                         ┌──────────────────────────┐
+                         │      Supervisor Agent     │
+                         │ Conversation + State     │
+                         └────────────┬─────────────┘
+                                      │
+                                      ▼
+                         ┌──────────────────────────┐
+                         │ File Intake & Discovery  │
+                         │                          │
+                         │ • classify files         │
+                         │ • inspect sheets         │
+                         │ • identify suppliers     │
+                         │ • identify criteria      │
+                         │ • assess confidence      │
+                         └────────────┬─────────────┘
+                                      │
+                    ┌─────────────────┼─────────────────┐
+                    │                 │                 │
+                    ▼                 ▼                 ▼
+            Criteria Processing  Supplier Processing  Clarification
+                    │                 │                 │
+                    ▼                 │                 │
+          Evaluation Configuration   │                 │
+                    │                 │                 │
+                    └────────┬────────┴─────────────────┘
+                             ▼
+                    ┌─────────────────────┐
+                    │  Evaluation Engine  │
+                    │                     │
+                    │ Validation          │
+                    │ Canonical Mapping   │
+                    │ Knockout            │
+                    │ Qualitative Score   │
+                    │ Weighted Calculation│
+                    │ Ranking             │
+                    │ Recommendation      │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │  Report Generator   │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Post-Evaluation Q&A │
+                    └─────────────────────┘
 ```
 
-                ┌────────────────────────────┐
-                │       Supervisor Agent      │
-                └─────────────┬──────────────┘
-                              │
-         ┌────────────────────┼────────────────────┐
-         │                    │                    │
-         ▼                    ▼                    ▼
- Criteria Processing   Supplier Processing   Conversation Management
-         │                    │
-         └──────────────┬─────┘
-                        ▼
-              Evaluation Engine
-                        │
-                        ▼
-               Report Generator
-                        │
-                        ▼
-             Post Evaluation Q&A
+---
 
+# File Intake and Discovery
+
+This is a new first-class architectural capability.
+
+## Responsibilities
+
+The File Intake and Discovery layer shall:
+
+1. Accept one or more uploaded files.
+2. Inspect workbook metadata and available sheets.
+3. Determine likely file roles.
+4. Determine likely sheet roles.
+5. Identify supplier names where possible.
+6. Detect evaluation criteria and scoring frameworks.
+7. Detect combined workbooks containing multiple business roles.
+8. Record confidence for material classifications.
+9. Identify material ambiguity.
+10. Route confidently classified information downstream.
+
+## File Role Classification
+
+At minimum:
+
+- `evaluation_criteria`
+- `supplier_submission`
+- `combined_evaluation_and_supplier`
+- `supporting_document`
+- `unknown`
+
+## Sheet Role Classification
+
+At minimum:
+
+- `evaluation_criteria`
+- `supplier_response`
+- `technical_response`
+- `commercial_response`
+- `company_profile`
+- `references`
+- `coverage`
+- `instructions`
+- `supporting_information`
+- `irrelevant`
+- `unknown`
+
+## Confidence Handling
+
+The system shall use confidence to determine whether it can proceed automatically.
+
+Conceptually:
+
+```text
+High confidence
+    ↓
+Proceed automatically
+
+Medium confidence
+    ↓
+Proceed with a visible assumption or targeted confirmation,
+where the decision is material
+
+Low confidence
+    ↓
+Ask a targeted clarification question
 ```
+
+Exact numeric thresholds are implementation parameters and shall be validated during QI Studio testing rather than hard-coded at architecture level.
 
 ---
 
@@ -181,13 +275,14 @@ The solution consists of six primary modules.
 
 ## 1. Supervisor
 
-The Supervisor Agent is the central orchestration layer.
-
-Responsibilities include:
+Responsible for:
 
 - greeting users
-- collecting required files
+- explaining the upload experience
 - maintaining workflow state
+- collecting files
+- invoking File Intake and Discovery
+- determining when clarification is required
 - invoking downstream modules
 - handling follow-up requests
 - managing conversation continuity
@@ -196,70 +291,81 @@ The Supervisor never performs supplier evaluation itself.
 
 ---
 
-## 2. Criteria Processing Module
+## 2. File Intake and Discovery
 
-Responsible for:
+Responsible for understanding uploaded files and preparing them for downstream modules.
 
-- reading Evaluation Criteria workbooks
-- extracting scoring guidance
+It does not score suppliers or make procurement recommendations.
+
+Outputs include:
+
+```text
+flow.fileIntake
+```
+
+containing classified files, sheets, detected entities, provenance and confidence.
+
+---
+
+## 3. Criteria Processing
+
+Consumes discovered criteria sources and produces normalized evaluation criteria.
+
+Responsibilities include:
+
+- extracting sections
+- extracting questions/requirements
 - extracting weights
-- extracting knockout rules
-- storing structured criteria
+- extracting guidance
+- extracting scoring rubrics
+- identifying knockout candidates
+- preserving provenance
 
 Outputs:
 
-```
-
-criteria
-
+```text
+flow.criteria
 ```
 
 ---
-## 2.a. Evaluation Configuration becomes a first-class module.
 
-Responsibilities
+## 4. Evaluation Configuration
 
-- Review extracted criteria
-- Configure knockout rules
-- Configure expected answers
-- Configure weights
-- Exclude questions
-- Finalize evaluation settings
+Consumes normalized criteria and produces business-approved evaluation rules.
 
 Outputs:
 
+```text
+flow.evaluationConfiguration
 ```
 
-evaluationConfiguration
+---
 
-```
+## 5. Supplier Processing
 
-## 3. Supplier Processing Module
+Consumes discovered supplier sources and produces normalized supplier response objects.
 
-Responsible for:
+Responsibilities include:
 
-- reading supplier workbooks
 - extracting supplier responses
-- preserving workbook structure
-- storing supplier objects
+- preserving source wording
+- preserving provenance
+- detecting unanswered questions
+- identifying supplier identity
 
 Outputs:
 
+```text
+flow.suppliers
 ```
-
-suppliers[]
-
-```
-
-One object is produced per supplier workbook.
 
 ---
 
-## 4. Evaluation Engine
+## 6. Evaluation Engine
 
-The Evaluation Engine performs all procurement analysis.
+Performs all procurement analysis after the input has been normalized.
 
-Internal stages include:
+Internal stages:
 
 1. Structure Validation
 2. Canonical Mapping
@@ -269,245 +375,103 @@ Internal stages include:
 6. Supplier Ranking
 7. Recommendation Generation
 
-The Evaluation Engine produces a complete evaluation result.
+The Evaluation Engine shall not inspect raw workbook layout directly.
 
 ---
 
-## 5. Report Generator
+## 7. Report Generator
 
 Consumes:
 
+```text
+flow.evaluationResult
 ```
 
-evaluationResult
-
-```
-
-Produces:
-
-- Excel workbook
-- Executive Summary
-- Detailed Scorecards
-- Comparative Analysis
-- Procurement Recommendations
+and produces consultant-ready deliverables.
 
 ---
 
-## 6. Post-Evaluation Q&A
+## 8. Post-Evaluation Q&A
 
-Allows consultants to continue interacting with completed evaluation results.
-
-Example questions:
-
-- Compare Supplier A and Supplier B.
-- Explain Question 4 scoring.
-- Show knockout failures.
-- Regenerate rankings.
-- Change evaluation weights.
-
-This module never repeats extraction.
-
-It operates exclusively on stored evaluation data.
+Consumes stored evaluation results and reports to support follow-up analysis without unnecessary reprocessing.
 
 ---
 
 # Overall Workflow
 
-The complete business workflow is illustrated below.
-
-```
-
+```text
 User
-
-↓
-
+ ↓
 Supervisor
-
-↓
-
-Upload Evaluation Criteria
-
-↓
-
-Criteria Processing
-
-↓
-
-Supervisor
-
-↓
-
-Upload Supplier Responses
-
-↓
-
-Supplier Processing
-
-↓
-
+ ↓
+Upload available files
+ ↓
+File Intake & Discovery
+ ↓
+Assess completeness / ambiguity
+ ↓
+Criteria Processing + Supplier Processing
+ ↓
+Evaluation Configuration
+ ↓
 Evaluation Engine
-
-↓
-
+ ↓
 Report Generation
-
-↓
-
+ ↓
 Results Delivered
-
-↓
-
+ ↓
 Post-Evaluation Q&A
-
 ```
+
+The user is not required to understand or explicitly declare the role of every file.
 
 ---
 
-# Internal Evaluation Workflow
+# Human Intervention Model
 
-Once evaluation begins, the Evaluation Engine executes the following pipeline.
+Human intervention is preserved for decisions that require business judgement.
 
-```
+Examples:
 
-Validate Questionnaire Structure
+- Two files appear equally likely to be the evaluation framework.
+- A knockout requirement is materially ambiguous.
+- A scoring rubric is absent and cannot be safely inferred.
+- A supplier identity cannot be reliably determined.
 
-↓
-
-Build Canonical Question Map
-
-↓
-
-Knockout Evaluation
-
-↓
-
-Qualitative Scoring
-
-↓
-
-Weighted Score Calculation
-
-↓
-
-Supplier Ranking
-
-↓
-
-Recommendation Generation
-
-```
-
-This pipeline is deterministic except for qualitative scoring.
-
----
-
-# Module Communication
-
-Modules communicate exclusively through Flow Variables.
-
-Modules never access another module's internal implementation.
-
-Example:
-
-```
-
-Criteria Processing
-
-↓
-
-flow.criteria
-
-↓
-
-Evaluation Engine
-
-```
-
-not
-
-```
-
-Evaluation Engine
-
-↓
-
-Read internal Criteria node
-
-```
-
-This design reduces coupling and improves maintainability.
-
----
-
-# Design Decisions
-
-## Why use a Supervisor?
-
-The evaluation process is conversational.
-
-Users upload files incrementally.
-
-The system must remember previous actions and determine what should happen next.
-
-A Supervisor Agent simplifies this orchestration.
-
----
-
-## Why separate Criteria and Supplier processing?
-
-These workbooks have different structures and responsibilities.
-
-Independent processing allows each extractor to be optimized separately.
-
----
-
-## Why build a Canonical Question Map?
-
-Without canonical mapping, every downstream module would repeatedly search two independent datasets.
-
-Canonical mapping produces one authoritative representation of every evaluation question.
-
-This significantly simplifies later stages.
-
----
-
-## Why deterministic validation?
-
-Validation should never depend on AI interpretation.
-
-Structural mismatches must always produce identical outcomes.
-
----
-
-## Why isolate scoring?
-
-Scoring is the only stage requiring semantic interpretation.
-
-By isolating it, the architecture minimizes probabilistic behaviour while maximizing explainability.
+The system should not ask users to resolve purely technical formatting questions when the information can be inferred.
 
 ---
 
 # Architectural Constraints
 
-The architecture assumes:
+The architecture assumes flexible real-world Excel inputs but a strict internal evaluation model.
 
-- standardized Excel workbooks
-- one Evaluation Criteria workbook per sourcing event
-- multiple supplier workbooks
-- one canonical evaluation model
-- deterministic downstream processing
-- conversational interaction through the Supervisor
+The system shall therefore:
+
+- tolerate reasonable workbook variation
+- preserve source data
+- retain provenance
+- retain confidence
+- avoid unsupported inference
+- normalize before evaluation
+- keep deterministic evaluation logic isolated
 
 ---
 
 # Architecture Summary
 
-The solution is intentionally designed as a modular conversational system rather than a monolithic workflow.
+The solution remains a modular conversational procurement evaluation platform, but the user-facing boundary is now intentionally schema-agnostic.
 
-The Supervisor orchestrates the conversation.
+The Supervisor manages the conversation.
 
-Specialized modules perform independent responsibilities.
+File Intake and Discovery translates user-provided files into structured business inputs.
 
-The Evaluation Engine provides deterministic, explainable procurement analysis.
+Criteria and Supplier Processing normalize those inputs.
 
-The resulting architecture is scalable, maintainable, production-ready and suitable for enterprise deployment.
+The Evaluation Engine performs deterministic, explainable procurement analysis.
+
+The Report Generator produces client-ready outputs.
+
+Post-Evaluation Q&A provides continued analytical interaction.
+
+This architecture supports deployment to floor users without transferring internal data-model constraints to them.
