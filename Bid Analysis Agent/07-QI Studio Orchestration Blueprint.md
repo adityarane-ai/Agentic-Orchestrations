@@ -1,8 +1,8 @@
 # 07. QI Studio Orchestration Blueprint
 
-**Document Version:** 1.0
+**Document Version:** 1.1
 
-**Status:** Architecture Frozen
+**Status:** Implementation Baseline Updated
 
 **Parent Document:** Software Design Specification (SDS)
 
@@ -10,20 +10,17 @@
 
 # Purpose
 
-This document defines the implementation blueprint of the RFP Qualitative Evaluation Agent within **GEP Quantum Intelligence Studio (QI Studio)**.
+This document defines the implementation blueprint of the RFP Qualitative Evaluation Agent within GEP Quantum Intelligence Studio (QI Studio).
 
-Unlike previous architecture documents, this chapter maps directly to the implementation.
+Version 1.1 adds File Intake & Discovery so users can upload available Excel files without knowing internal templates.
 
-Every node described in this document corresponds to a physical node within the QI Studio orchestration.
-
-No implementation decisions shall be made outside this document.
+The blueprint remains intentionally modular and testable. Each node has a single responsibility.
 
 ---
 
 # Design Objectives
 
-The orchestration has been designed to achieve the following objectives.
-
+- Low-friction user experience
 - Simple orchestration
 - Single responsibility per node
 - Deterministic execution
@@ -32,6 +29,8 @@ The orchestration has been designed to achieve the following objectives.
 - Easy maintenance
 - Reusable nodes
 - Enterprise scalability
+- Explicit data contracts
+- Confidence-aware automation
 
 ---
 
@@ -41,57 +40,39 @@ The orchestration has been designed to achieve the following objectives.
 flowchart TD
 
 START((START))
-
 SUPERVISOR[Supervisor Agent]
-
+INTAKE[File Intake & Discovery]
+ASSESS[Assess Input Completeness]
 CRITERIA[Extract Evaluation Criteria]
-
 CONFIG[Evaluation Configuration]
-
 SUPPLIER[Extract Supplier Submission]
-
 VALIDATE[Validate Questionnaire Structure]
-
 CANONICAL[Build Canonical Question Map]
-
 KNOCKOUT[Knockout Evaluation]
-
 SCORING[Qualitative Scoring]
-
 WEIGHT[Weighted Score Calculation]
-
 RANK[Supplier Ranking]
-
+RECOMMEND[Recommendation Generation]
 REPORT[Generate Excel Report]
-
 OUTPUT((OUTPUT))
 
 START --> SUPERVISOR
-
-SUPERVISOR --> CRITERIA
-
+SUPERVISOR --> INTAKE
+INTAKE --> ASSESS
+ASSESS --> CRITERIA
+ASSESS --> SUPPLIER
+ASSESS --> SUPERVISOR
 CRITERIA --> CONFIG
-
 CONFIG --> SUPERVISOR
-
-SUPERVISOR --> SUPPLIER
-
 SUPPLIER --> VALIDATE
-
 VALIDATE --> CANONICAL
-
 CANONICAL --> KNOCKOUT
-
 KNOCKOUT --> SCORING
-
 SCORING --> WEIGHT
-
 WEIGHT --> RANK
-
-RANK --> REPORT
-
+RANK --> RECOMMEND
+RECOMMEND --> REPORT
 REPORT --> SUPERVISOR
-
 SUPERVISOR --> OUTPUT
 ```
 
@@ -100,84 +81,67 @@ SUPERVISOR --> OUTPUT
 # Node Inventory
 
 | ID | Node | Type |
-|----|------|------|
+|---|---|---|
 | N-001 | START | Start |
 | N-002 | Supervisor | Agent |
-| N-003 | Extract Evaluation Criteria | Agent |
-| N-004 | Evaluation Configuration | Agent |
-| N-005 | Extract Supplier Submission | Agent |
-| N-006 | Validate Questionnaire Structure | Script |
-| N-007 | Build Canonical Question Map | Script |
-| N-008 | Knockout Evaluation | Script |
-| N-009 | Qualitative Scoring | Agent |
-| N-010 | Weighted Score Calculation | Script |
-| N-011 | Supplier Ranking | Script |
-| N-012 | Generate Excel Report | Agent |
-| N-013 | OUTPUT | Output |
+| N-003 | File Intake & Discovery | Agent |
+| N-004 | Assess Input Completeness | Script / Rule |
+| N-005 | Extract Evaluation Criteria | Agent |
+| N-006 | Evaluation Configuration | Agent |
+| N-007 | Extract Supplier Submission | Agent |
+| N-008 | Validate Questionnaire Structure | Script |
+| N-009 | Build Canonical Question Map | Script |
+| N-010 | Knockout Evaluation | Script |
+| N-011 | Qualitative Scoring | Agent |
+| N-012 | Weighted Score Calculation | Script |
+| N-013 | Supplier Ranking | Script |
+| N-014 | Recommendation Generation | Agent / Script depending implementation |
+| N-015 | Generate Excel Report | Agent |
+| N-016 | OUTPUT | Output |
 
 ---
 
 # Node Execution Order
 
-Execution follows the sequence below.
-
 ```text
 START
-
 ↓
-
 Supervisor
-
 ↓
-
-Extract Evaluation Criteria
-
+File Intake & Discovery
 ↓
-
+Assess Input Completeness
+↓
+┌─────────────────────────────────────┐
+│ Criteria available?                 │
+│ Supplier data available?            │
+│ Material ambiguity?                 │
+└─────────────────────────────────────┘
+↓
+Criteria Processing / Clarification / Supplier Processing
+↓
 Evaluation Configuration
-
 ↓
-
-Supervisor
-
+Supplier Processing
 ↓
-
-Extract Supplier Submission
-
-↓
-
 Validate Questionnaire Structure
-
 ↓
-
-Canonical Question Map
-
+Build Canonical Question Map
 ↓
-
 Knockout Evaluation
-
 ↓
-
 Qualitative Scoring
-
 ↓
-
 Weighted Score Calculation
-
 ↓
-
 Supplier Ranking
-
 ↓
-
+Recommendation Generation
+↓
 Generate Excel Report
-
 ↓
-
 Supervisor
-
 ↓
-
 OUTPUT
 ```
 
@@ -185,277 +149,405 @@ OUTPUT
 
 # Node Responsibilities
 
-## START
+## N-001 START
 
-Type
+Accepts user message and uploaded files.
 
-Start Node
-
-Purpose
-
-Initialises the orchestration.
-
-Responsibilities
-
-- Accept user interaction
-- Initialise Flow Variables
-- Transfer control to the Supervisor
+The start interface shall not require the user to declare file roles.
 
 ---
 
-## Supervisor
+## N-002 Supervisor
 
-Type
+Responsibilities:
 
-Agent
-
-Purpose
-
-Conversation controller.
-
-Responsibilities
-
-- Greeting
-- Routing
+- Conversation orchestration
 - State management
+- User guidance
+- File intake invocation
+- Clarification
 - Handoffs
-- User interaction
-- Follow-up questions
+- Result delivery
+- Post-evaluation Q&A routing
 
-Produces
+The Supervisor does not classify workbook content itself when File Intake & Discovery can perform that responsibility.
 
-```
+Produces:
+
+```text
 flow.conversationState
 ```
 
 ---
 
-## Extract Evaluation Criteria
+## N-003 File Intake & Discovery
 
-Type
+Type:
 
 Agent
 
-Purpose
+Purpose:
 
-Read the Evaluation Criteria workbook.
+Understand uploaded files before business processing.
 
-Produces
+Consumes:
 
+```text
+User files
 ```
-flow.criteria
+
+Produces:
+
+```text
+flow.fileIntake
 ```
 
-Consumes
+Responsibilities:
 
-```
-Evaluation Workbook
-```
+- Discover workbook sheets
+- Classify file roles
+- Classify sheet roles
+- Identify supplier names
+- Identify evaluation frameworks
+- Detect combined workbooks
+- Detect supporting documents
+- Record confidence
+- Record ambiguity
+- Preserve provenance
+
+It must not score suppliers.
 
 ---
 
-## Evaluation Configuration
+## N-004 Assess Input Completeness
 
-Type
+Type:
+
+Script / Rule
+
+Purpose:
+
+Determine whether the current session contains sufficient information to proceed.
+
+Inputs:
+
+```text
+flow.fileIntake
+flow.criteria
+flow.evaluationConfiguration
+flow.suppliers
+flow.conversationState
+```
+
+Outputs:
+
+```text
+inputAssessment
+```
+
+Possible outcomes:
+
+```text
+PROCEED_CRITERIA
+PROCEED_SUPPLIERS
+WAIT_FOR_FILES
+CLARIFY
+READY_FOR_EVALUATION
+```
+
+This node must not make semantic interpretations; it uses the structured discovery output and explicit business rules.
+
+---
+
+## N-005 Extract Evaluation Criteria
+
+Type:
 
 Agent
 
-Purpose
+Consumes:
 
-Finalise business evaluation settings.
-
-Produces
-
+```text
+flow.fileIntake
 ```
+
+Produces:
+
+```text
+flow.criteria
+```
+
+Responsibilities:
+
+- Extract sections
+- Extract questions/requirements
+- Preserve source numbering
+- Extract weights
+- Extract guidance/rubrics
+- Identify knockout candidates
+- Preserve provenance
+- Distinguish explicit vs inferred values
+
+---
+
+## N-006 Evaluation Configuration
+
+Type:
+
+Agent
+
+Consumes:
+
+```text
+flow.criteria
+```
+
+Produces:
+
+```text
 flow.evaluationConfiguration
 ```
 
-Consumes
+Responsibilities:
 
-```
-flow.criteria
-```
+- Review material criteria interpretation
+- Configure weights
+- Configure knockout rules
+- Define acceptance conditions
+- Exclude questions where allowed
+- Obtain approval when required
 
 ---
 
-## Extract Supplier Submission
+## N-007 Extract Supplier Submission
 
-Type
+Type:
 
 Agent
 
-Purpose
+Consumes:
 
-Read supplier workbooks.
-
-Produces
-
+```text
+flow.fileIntake
 ```
+
+Produces:
+
+```text
 flow.suppliers
 ```
 
-Consumes
+Responsibilities:
 
-```
-Supplier Workbooks
-```
+- Identify supplier
+- Extract responses
+- Preserve wording
+- Preserve section context
+- Preserve source references
+- Detect unanswered questions
+- Support multiple supplier sources
+
+No scoring.
 
 ---
 
-## Validate Questionnaire Structure
+## N-008 Validate Questionnaire Structure
 
-Type
+Type:
 
 Script
 
-Purpose
+Consumes:
 
-Validate supplier responses against the Evaluation Criteria.
-
-Produces
-
+```text
+flow.criteria
+flow.suppliers
 ```
-validationResult
+
+Produces:
+
+```text
+flow.validationResult
 ```
+
+Validation shall distinguish errors from warnings and shall tolerate harmless workbook variation where semantic mapping is reliable.
 
 ---
 
-## Build Canonical Question Map
+## N-009 Build Canonical Question Map
 
-Type
+Type:
 
 Script
 
-Purpose
+Consumes:
 
-Merge supplier answers with evaluation criteria.
-
-Produces
-
+```text
+flow.criteria
+flow.evaluationConfiguration
+flow.suppliers
+flow.validationResult
 ```
-canonicalQuestionMap
+
+Produces:
+
+```text
+flow.canonicalQuestionMap
 ```
+
+Purpose:
+
+Create one authoritative representation of each evaluation question/requirement and supplier response.
 
 ---
 
-## Knockout Evaluation
+## N-010 Knockout Evaluation
 
-Type
+Type:
 
 Script
 
-Purpose
+Consumes:
 
-Evaluate all configured knockout rules.
-
-Produces
-
+```text
+flow.canonicalQuestionMap
+flow.evaluationConfiguration
 ```
-knockoutResult
+
+Produces:
+
+```text
+flow.knockoutResult
 ```
+
+Knockout decisions must use configured acceptance conditions and source evidence. Simple generic keyword matching is not authoritative.
 
 ---
 
-## Qualitative Scoring
+## N-011 Qualitative Scoring
 
-Type
+Type:
 
 Agent
 
-Purpose
+Consumes:
 
-Assign qualitative scores using the approved evaluation criteria.
-
-Produces
-
+```text
+flow.canonicalQuestionMap
+flow.knockoutResult
+flow.evaluationConfiguration
 ```
-scoringResult
+
+Produces:
+
+```text
+flow.scoringResult
 ```
+
+LLM responsibility is limited to semantic assessment against the approved rubric.
 
 ---
 
-## Weighted Score Calculation
+## N-012 Weighted Score Calculation
 
-Type
+Type:
 
 Script
 
-Purpose
+Consumes:
 
-Calculate weighted supplier scores.
-
-Produces
-
+```text
+flow.scoringResult
+flow.evaluationConfiguration
 ```
-weightedScores
+
+Produces:
+
+```text
+flow.weightedScores
 ```
+
+All arithmetic is deterministic.
 
 ---
 
-## Supplier Ranking
+## N-013 Supplier Ranking
 
-Type
+Type:
 
 Script
 
-Purpose
+Consumes:
 
-Rank suppliers.
-
-Produces
-
+```text
+flow.weightedScores
+flow.knockoutResult
 ```
-rankingResult
+
+Produces:
+
+```text
+flow.rankingResult
 ```
+
+Qualified suppliers receive ranks. Disqualified suppliers do not receive a qualified rank.
 
 ---
 
-## Generate Excel Report
+## N-014 Recommendation Generation
 
-Type
+Purpose:
 
-Agent
+Generate evidence-based procurement recommendations from structured evaluation results.
 
-Purpose
+The node must not invent supplier facts.
 
-Generate the final procurement evaluation report.
+---
 
-Produces
+## N-015 Generate Excel Report
 
+Consumes:
+
+```text
+flow.evaluationResult
 ```
+
+Produces:
+
+```text
 flow.report
 ```
 
+No scoring or ranking logic exists in this node.
+
 ---
 
-## OUTPUT
+## N-016 OUTPUT
 
-Type
-
-Output
-
-Purpose
-
-Return results to the user.
+Returns final results to the user.
 
 ---
 
 # Node Connections
 
 | From | To |
-|--------|-----|
+|---|---|
 | START | Supervisor |
-| Supervisor | Extract Evaluation Criteria |
+| Supervisor | File Intake & Discovery |
+| File Intake & Discovery | Assess Input Completeness |
+| Assess Input Completeness | Extract Evaluation Criteria |
+| Assess Input Completeness | Extract Supplier Submission |
+| Assess Input Completeness | Supervisor / Clarification |
 | Extract Evaluation Criteria | Evaluation Configuration |
 | Evaluation Configuration | Supervisor |
-| Supervisor | Extract Supplier Submission |
 | Extract Supplier Submission | Validate Questionnaire Structure |
 | Validate Questionnaire Structure | Build Canonical Question Map |
 | Build Canonical Question Map | Knockout Evaluation |
 | Knockout Evaluation | Qualitative Scoring |
 | Qualitative Scoring | Weighted Score Calculation |
 | Weighted Score Calculation | Supplier Ranking |
-| Supplier Ranking | Generate Excel Report |
+| Supplier Ranking | Recommendation Generation |
+| Recommendation Generation | Generate Excel Report |
 | Generate Excel Report | Supervisor |
 | Supervisor | OUTPUT |
 
@@ -464,9 +556,10 @@ Return results to the user.
 # Retry Strategy
 
 | Node Type | Retry Policy |
-|------------|--------------|
-| Agent | Retry once |
-| Script | No retry |
+|---|---|
+| File Intake Agent | Retry once, then route to clarification/error |
+| Other Agent | Retry once |
+| Script | No automatic retry; return structured error |
 | Output | No retry |
 | Start | No retry |
 
@@ -474,33 +567,36 @@ Return results to the user.
 
 # Error Handling
 
-Every processing node enables **Error Handling**.
+All Agent Nodes shall have error handling enabled.
 
-Failures return to the Supervisor.
+File discovery errors shall identify the affected file.
 
-The Supervisor determines:
+Criteria extraction errors shall return to the Supervisor.
 
-- Retry
-- Ask user to re-upload
-- Abort workflow
+Supplier extraction errors shall isolate the affected supplier/file where practical.
 
-The orchestration shall never terminate unexpectedly.
+Evaluation errors shall return structured validation information.
+
+The Supervisor determines whether to retry, request clarification or request a replacement input.
 
 ---
 
 # Variable Ownership
 
 | Variable | Owner |
-|----------|--------|
+|---|---|
+| flow.conversationState | Supervisor |
+| flow.fileIntake | File Intake & Discovery |
 | flow.criteria | Extract Evaluation Criteria |
 | flow.evaluationConfiguration | Evaluation Configuration |
 | flow.suppliers | Extract Supplier Submission |
-| validationResult | Validate Questionnaire Structure |
-| canonicalQuestionMap | Build Canonical Question Map |
-| knockoutResult | Knockout Evaluation |
-| scoringResult | Qualitative Scoring |
-| weightedScores | Weighted Score Calculation |
-| rankingResult | Supplier Ranking |
+| flow.validationResult | Validate Questionnaire Structure |
+| flow.canonicalQuestionMap | Build Canonical Question Map |
+| flow.knockoutResult | Knockout Evaluation |
+| flow.scoringResult | Qualitative Scoring |
+| flow.weightedScores | Weighted Score Calculation |
+| flow.rankingResult | Supplier Ranking |
+| flow.evaluationResult | Evaluation Result Builder / Evaluation Engine |
 | flow.report | Generate Excel Report |
 
 Every variable has exactly one producer.
@@ -509,28 +605,28 @@ Every variable has exactly one producer.
 
 # QI Studio Design Rules
 
-The following implementation rules shall be followed throughout development.
-
-1. Every node shall have a single responsibility.
-2. Every Agent node shall define a structured output wherever applicable.
-3. Every Script node shall use documented input and output variables.
-4. Rule Nodes shall only perform routing decisions.
-5. Flow Variables shall be the only communication mechanism between nodes.
-6. Business logic shall reside in Script Nodes wherever deterministic implementation is possible.
-7. LLM reasoning shall be restricted to semantic interpretation only.
-8. Error Handling shall be enabled for all Agent Nodes.
-9. Every node shall include a descriptive name matching this specification.
+1. Every node has one responsibility.
+2. User-facing file role classification is performed by File Intake & Discovery, not by the user.
+3. Agent nodes perform semantic interpretation only.
+4. Script nodes perform deterministic business logic.
+5. Rule nodes perform routing only.
+6. Flow Variables are the shared communication mechanism.
+7. Source data is preserved and traceable.
+8. Material uncertainty is explicit.
+9. Errors return to controlled recovery paths.
+10. No node should require the user to reformat data when the system can reasonably normalize it.
+11. Structured outputs shall be used wherever applicable.
+12. Every node shall be individually testable before downstream nodes are added.
 
 ---
 
 # Implementation Freeze
 
-The node names, execution order, responsibilities and ownership defined within this document constitute the implementation baseline for Version 1.0.
+The node names, execution order, responsibilities and ownership defined here constitute the V1.1 implementation baseline.
 
-No changes shall be made unless:
+Changes are permitted where:
 
-- A QI Studio limitation prevents implementation.
-- A defect prevents correct execution.
-- A new business requirement is formally approved.
-
-This document shall serve as the construction blueprint for the QI Studio orchestration.
+- QI Studio limitations prevent implementation.
+- A defect is discovered.
+- Testing demonstrates a better implementation without changing business behaviour.
+- A new business requirement is approved.
