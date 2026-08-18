@@ -1,8 +1,8 @@
 # 08. Flow Variables
 
-**Document Version:** 1.0
+**Document Version:** 1.1
 
-**Status:** Architecture Frozen
+**Status:** Architecture Baseline Updated
 
 **Parent Document:** Software Design Specification (SDS)
 
@@ -12,61 +12,23 @@
 
 This document defines every Flow Variable used by the RFP Qualitative Evaluation Agent.
 
-Flow Variables serve as the exclusive communication mechanism between modules within the QI Studio orchestration.
+Version 1.1 introduces `flow.fileIntake` to support flexible user-provided Excel files while preserving strict downstream contracts.
 
-Every Flow Variable has:
-
-- A single producer
-- One or more consumers
-- A defined lifecycle
-- A documented JSON schema
-- A clearly defined business purpose
-
-No undocumented Flow Variables shall be introduced during implementation.
+Flow Variables are the shared communication mechanism between modules.
 
 ---
 
 # Design Principles
 
-The Flow Variable architecture follows five core principles.
+1. Single Producer
+2. Multiple Consumers
+3. Immutable Source Data
+4. Explicit Contracts
+5. Stable Interfaces
+6. Provenance Preservation
+7. Explicit Uncertainty
 
-## 1. Single Producer
-
-Every Flow Variable has exactly one owner responsible for creating and updating it.
-
-No other module may modify that variable.
-
----
-
-## 2. Multiple Consumers
-
-A Flow Variable may be consumed by multiple downstream modules.
-
-Consumers may read the variable but shall never modify it.
-
----
-
-## 3. Immutable Source Data
-
-Data extracted from uploaded workbooks remains immutable.
-
-Source data shall never be modified after extraction.
-
----
-
-## 4. Explicit Contracts
-
-Every Flow Variable must conform to a documented JSON schema.
-
-No implicit fields shall exist.
-
----
-
-## 5. Stable Interfaces
-
-Flow Variable structures constitute public interfaces between modules.
-
-Breaking changes require an SDS version update.
+No undocumented Flow Variables shall be introduced during implementation.
 
 ---
 
@@ -75,32 +37,22 @@ Breaking changes require an SDS version update.
 ```mermaid
 flowchart LR
 
-CriteriaWorkbook --> flow.criteria
-
+UserFiles --> flow.fileIntake
+flow.fileIntake --> flow.criteria
+flow.fileIntake --> flow.suppliers
 flow.criteria --> flow.evaluationConfiguration
-
-SupplierWorkbook --> flow.suppliers
-
+flow.criteria --> flow.validationResult
+flow.suppliers --> flow.validationResult
 flow.criteria --> flow.canonicalQuestionMap
-
 flow.evaluationConfiguration --> flow.canonicalQuestionMap
-
 flow.suppliers --> flow.canonicalQuestionMap
-
-flow.canonicalQuestionMap --> flow.validationResult
-
-flow.validationResult --> flow.knockoutResult
-
+flow.validationResult --> flow.canonicalQuestionMap
+flow.canonicalQuestionMap --> flow.knockoutResult
 flow.knockoutResult --> flow.scoringResult
-
 flow.scoringResult --> flow.weightedScores
-
 flow.weightedScores --> flow.rankingResult
-
 flow.rankingResult --> flow.evaluationResult
-
 flow.evaluationResult --> flow.report
-
 flow.evaluationResult --> Supervisor
 ```
 
@@ -109,406 +61,493 @@ flow.evaluationResult --> Supervisor
 # Flow Variable Inventory
 
 | Variable | Producer | Consumers |
-|------------|-----------|------------|
+|---|---|---|
 | flow.conversationState | Supervisor | Supervisor |
-| flow.criteria | Criteria Processing | Evaluation Configuration, Evaluation Engine |
+| flow.fileIntake | File Intake & Discovery | Supervisor, Criteria Processing, Supplier Processing |
+| flow.criteria | Criteria Processing | Evaluation Configuration, Validation, Canonical Mapping |
 | flow.evaluationConfiguration | Evaluation Configuration | Evaluation Engine |
-| flow.suppliers | Supplier Processing | Evaluation Engine |
-| flow.validationResult | Validation | Canonical Mapping |
-| flow.canonicalQuestionMap | Canonical Mapping | Knockout Evaluation |
-| flow.knockoutResult | Knockout Evaluation | Qualitative Scoring |
+| flow.suppliers | Supplier Processing | Validation, Canonical Mapping, Evaluation Engine |
+| flow.validationResult | Validation | Canonical Mapping, Supervisor |
+| flow.canonicalQuestionMap | Canonical Mapping | Knockout Evaluation, Qualitative Scoring |
+| flow.knockoutResult | Knockout Evaluation | Qualitative Scoring, Ranking |
 | flow.scoringResult | Qualitative Scoring | Weighted Score Calculation |
 | flow.weightedScores | Weighted Score Calculation | Supplier Ranking |
 | flow.rankingResult | Supplier Ranking | Evaluation Result Builder |
-| flow.evaluationResult | Evaluation Engine | Report Generator, Supervisor, Q&A |
-| flow.report | Report Generator | Supervisor |
+| flow.evaluationResult | Evaluation Engine / Result Builder | Report Generator, Supervisor, Q&A |
+| flow.report | Report Generator | Supervisor, Q&A |
 
 ---
 
 # Variable Specifications
 
----
-
 ## flow.conversationState
 
-### Purpose
+Purpose:
 
 Tracks the current orchestration state.
 
-### Producer
+Producer:
 
 Supervisor
 
-### Consumers
-
-Supervisor
-
-### Lifecycle
-
-Entire conversation.
-
-### Example
+Example:
 
 ```json
 {
-  "state": "WAITING_FOR_SUPPLIERS"
+  "state": "ASSESSING_INPUT"
 }
 ```
+
+Supported states:
+
+```text
+INITIAL
+WAITING_FOR_FILES
+DISCOVERING_FILES
+ASSESSING_INPUT
+CLARIFICATION_REQUIRED
+PROCESSING_CRITERIA
+CONFIGURING_EVALUATION
+WAITING_FOR_SUPPLIERS
+PROCESSING_SUPPLIERS
+RUNNING_EVALUATION
+GENERATING_REPORT
+COMPLETED
+POST_EVALUATION
+FILE_DISCOVERY_ERROR
+CRITERIA_ERROR
+SUPPLIER_ERROR
+EVALUATION_ERROR
+```
+
+---
+
+## flow.fileIntake
+
+Purpose:
+
+Represents the system's structured understanding of uploaded files and workbook structures before business processing.
+
+Producer:
+
+File Intake & Discovery
+
+Consumers:
+
+- Supervisor
+- Criteria Processing
+- Supplier Processing
+
+Lifecycle:
+
+Created after file discovery and treated as immutable for the current intake set.
+
+Required information:
+
+- session/intake identifier
+- files[]
+- classification status
+- material ambiguities
+- completeness assessment inputs
+
+Each file may contain:
+
+- fileId
+- fileName
+- mimeType
+- fileRole
+- classificationConfidence
+- classificationReason
+- supplierName
+- sheets[]
+- provenance
+
+Each sheet may contain:
+
+- sheetName
+- sheetRole
+- confidence
+- reason
+- detected headers
+- source dimensions where available
+- provenance
+
+Possible file roles:
+
+```text
+evaluation_criteria
+supplier_submission
+combined_evaluation_and_supplier
+supporting_document
+unknown
+```
+
+Possible sheet roles:
+
+```text
+evaluation_criteria
+supplier_response
+technical_response
+commercial_response
+company_profile
+references
+coverage
+instructions
+supporting_information
+irrelevant
+unknown
+```
+
+Unknown values shall be represented as `null` rather than fabricated.
 
 ---
 
 ## flow.criteria
 
-### Purpose
+Purpose:
 
-Represents the extracted Evaluation Criteria workbook.
+Represents normalized evaluation criteria extracted from discovered source material.
 
-### Producer
+Producer:
 
 Criteria Processing
 
-### Consumers
+Consumers:
 
-Evaluation Configuration
+- Evaluation Configuration
+- Validation
+- Canonical Mapping
 
-Evaluation Engine
+Lifecycle:
 
-### Lifecycle
+Created once for an evaluation configuration cycle and immutable thereafter.
 
-Created once.
+Contents:
 
-Immutable thereafter.
-
-### Contents
-
-- Metadata
-- Sections
-- Questions
-- Weights
-- Guidance
-- Knockout candidates
+- metadata
+- sections
+- questions
+- stable question IDs
+- source numbering where available
+- weights
+- guidance
+- rubrics
+- knockout candidates
+- provenance
+- inference indicators
 
 ---
 
 ## flow.evaluationConfiguration
 
-### Purpose
+Purpose:
 
-Represents the business-approved evaluation configuration.
+Represents business-approved evaluation rules.
 
-### Producer
+Producer:
 
-Evaluation Configuration Module
+Evaluation Configuration
 
-### Consumers
+Consumer:
 
 Evaluation Engine
 
-### Lifecycle
+Contents:
 
-Created after criteria extraction.
+- approved
+- weights
+- knockout rules
+- excluded questions
+- included sections
+- acceptance conditions
+- configuredBy
+- configuredAt
 
-May be regenerated before supplier evaluation.
-
-### Contents
-
-- Approved weights
-- Knockout questions
-- Expected knockout answers
-- Included sections
-- Excluded questions
-- Evaluation settings
+This is the principal mutable business configuration object.
 
 ---
 
 ## flow.suppliers
 
-### Purpose
+Purpose:
 
-Contains extracted supplier response objects.
+Contains normalized supplier response objects.
 
-### Producer
+Producer:
 
 Supplier Processing
 
-### Consumers
+Consumers:
 
-Evaluation Engine
+- Validation
+- Canonical Mapping
+- Evaluation Engine
 
-### Lifecycle
+Lifecycle:
 
-Created after supplier extraction.
+Immutable after extraction for the current source set.
 
-Immutable.
-
-One object per supplier.
+One logical object per supplier.
 
 ---
 
 ## flow.validationResult
 
-### Purpose
+Purpose:
 
-Stores questionnaire validation results.
+Stores structural validation findings.
 
-### Producer
+Producer:
 
 Validate Questionnaire Structure
 
-### Consumers
+Consumers:
 
-Canonical Mapping
+- Canonical Mapping
+- Supervisor
 
-### Contents
+Contents:
 
-- Validation status
-- Structural errors
-- Missing questions
-- Extra questions
-- Warnings
+- valid
+- errors[]
+- warnings[]
+- missingQuestions[]
+- extraQuestions[]
+- mappingIssues[]
+- sourceIssues[]
 
 ---
 
 ## flow.canonicalQuestionMap
 
-### Purpose
+Purpose:
 
-Provides the single canonical representation of every evaluation question.
+Provides the single canonical representation of every evaluation question/requirement used downstream.
 
-### Producer
+Producer:
 
 Canonical Mapping
 
-### Consumers
+Consumers:
 
-Knockout Evaluation
+- Knockout Evaluation
+- Qualitative Scoring
 
-### Lifecycle
+Contains:
 
-Immutable.
-
-Acts as the single source of truth for downstream evaluation.
-
-Contains
-
-- Question
-- Supplier Answer
-- Evaluation Criteria
-- Weight
-- Knockout Rules
+- stable question ID
+- source question number
+- section
+- question text
+- supplier name
+- supplier answer
+- answered
+- criteria
+- weight
+- scoring guidance
+- knockout rules
+- provenance
+- mapping confidence
 
 ---
 
 ## flow.knockoutResult
 
-### Purpose
+Purpose:
 
 Stores knockout evaluation results.
 
-### Producer
+Producer:
 
 Knockout Evaluation
 
-### Consumers
+Consumers:
 
-Qualitative Scoring
+- Qualitative Scoring
+- Supplier Ranking
 
-Contains
+Contains:
 
-- Supplier status
-- Failed questions
-- Failure reasons
-- Pass/Fail outcome
+- supplierName
+- passed
+- status
+- failedQuestions[]
+- expected conditions
+- actual evidence
+- reason
+- confidence where applicable
 
 ---
 
 ## flow.scoringResult
 
-### Purpose
+Purpose:
 
-Stores qualitative evaluation scores.
+Stores qualitative evaluation scores and evidence.
 
-### Producer
+Producer:
 
 Qualitative Scoring
 
-### Consumers
+Consumer:
 
 Weighted Score Calculation
 
-Contains
+Contains:
 
-- Question scores
-- Reasoning
-- Evidence
-- Strengths
-- Weaknesses
+- supplierName
+- questionScores[]
+- score
+- maxScore
+- reasoning
+- evidence
+- strengths
+- weaknesses
+- scoring confidence
 
 ---
 
 ## flow.weightedScores
 
-### Purpose
+Purpose:
 
-Stores weighted numerical scores.
+Stores deterministic weighted numerical results.
 
-### Producer
+Producer:
 
 Weighted Score Calculation
 
-### Consumers
+Consumer:
 
 Supplier Ranking
 
-Contains
+Contains:
 
-- Section scores
-- Overall scores
-- Weighted totals
+- supplierName
+- sectionScores[]
+- overallWeightedScore
+- calculation metadata
 
 ---
 
 ## flow.rankingResult
 
-### Purpose
+Purpose:
 
-Stores supplier rankings.
+Stores deterministic supplier ranking.
 
-### Producer
+Producer:
 
 Supplier Ranking
 
-### Consumers
+Consumer:
 
 Evaluation Result Builder
 
-Contains
+Contains:
 
-- Rank
-- Supplier
-- Total Score
-- Tie handling
-- Ordering rationale
+- rank
+- supplierName
+- score
+- status
+- tie handling
+- ordering rationale
+
+Disqualified suppliers do not receive a qualified rank.
 
 ---
 
 ## flow.evaluationResult
 
-### Purpose
+Purpose:
 
 Represents the complete procurement evaluation.
 
-### Producer
+Producer:
 
-Evaluation Engine
+Evaluation Result Builder / Evaluation Engine
 
-### Consumers
+Consumers:
 
-Supervisor
+- Supervisor
+- Report Generator
+- Post-Evaluation Q&A
 
-Report Generator
+Contains:
 
-Post Evaluation Q&A
-
-### Lifecycle
-
-Created once.
-
-Immutable.
-
-Contains
-
-- Supplier summaries
-- Rankings
-- Scores
-- Knockout results
-- Recommendations
-- Strengths
-- Weaknesses
-- Risks
-- Negotiation opportunities
+- summary
+- supplier summaries
+- rankings
+- scores
+- knockout results
+- recommendations
+- strengths
+- weaknesses
+- risks
+- negotiation opportunities
+- provenance/audit metadata
 
 ---
 
 ## flow.report
 
-### Purpose
+Purpose:
 
 Represents generated deliverables.
 
-### Producer
+Producer:
 
 Report Generator
 
-### Consumers
+Consumers:
 
-Supervisor
+- Supervisor
+- Q&A
 
-Contains
+Contains:
 
-- Excel workbook
-- Report metadata
-- Generation timestamp
-- Download reference
+- generatedAt
+- generatedBy
+- reportVersion
+- reportType
+- downloadReference
+- status
 
 ---
 
 # Variable Ownership Rules
 
-The following rules apply to every Flow Variable.
-
 1. Every variable has exactly one producer.
-2. Producers may modify only their own variables.
-3. Consumers shall treat variables as read-only.
-4. Source variables remain immutable after extraction.
-5. Runtime variables may only be modified by their owning module.
+2. Producers modify only their own variables.
+3. Consumers treat variables as read-only.
+4. Source variables remain immutable.
+5. Unknown information is never silently fabricated.
+6. Material inference retains confidence and provenance.
 
 ---
 
 # Naming Convention
 
-All Flow Variables shall follow the naming convention:
-
-```
+```text
 flow.<businessObject>
 ```
 
-Examples
+Examples:
 
-```
+```text
+flow.fileIntake
 flow.criteria
-
 flow.suppliers
-
-flow.report
-
 flow.evaluationResult
+flow.report
 ```
 
-Temporary variables inside Script Nodes should never become Flow Variables unless consumed by another module.
-
----
-
-# Future Expansion
-
-The Flow Variable model has been designed to support future enhancements including:
-
-- Multi-round evaluations
-- Human approvals
-- Collaborative scoring
-- External ERP integrations
-- RAG-based supplier enrichment
-- Audit trails
-- Versioned evaluation sessions
-
-These capabilities can be introduced without breaking existing interfaces.
+Temporary script variables shall not become Flow Variables unless consumed by another module.
 
 ---
 
 # Summary
 
-Flow Variables form the communication backbone of the RFP Qualitative Evaluation Agent.
+`flow.fileIntake` is the new abstraction boundary between user-provided files and the strict internal procurement model.
 
-By enforcing single ownership, immutable source data, explicit contracts and stable interfaces, the architecture achieves predictable execution, modular implementation and enterprise-grade maintainability.
-
-This document constitutes the authoritative reference for all shared data objects used throughout the orchestration.
+All downstream Flow Variables retain the original single-producer, immutable-source and explicit-contract principles.
