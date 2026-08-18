@@ -1,8 +1,8 @@
 # 06. Overall Orchestration
 
-**Document Version:** 1.0
+**Document Version:** 1.1
 
-**Status:** Architecture Frozen
+**Status:** Architecture Baseline Updated
 
 **Parent Document:** Software Design Specification (SDS)
 
@@ -10,70 +10,37 @@
 
 # Purpose
 
-This document defines the complete orchestration executed by the RFP Qualitative Evaluation Agent.
+This document defines the complete orchestration for the RFP Qualitative Evaluation Agent, including the zero-template user experience.
 
-It specifies:
-
-- Overall workflow
-- Module sequencing
-- Supervisor handoffs
-- Node ownership
-- Processing stages
-- Flow Variable updates
-- Entry and exit conditions
-
-This document serves as the implementation blueprint for the QI Studio orchestration.
+The Supervisor owns conversation and workflow state. File Intake & Discovery interprets uploaded files. Specialized modules normalize and evaluate the data.
 
 ---
 
 # Design Philosophy
 
-The orchestration follows four fundamental principles.
-
 ## 1. Supervisor Driven
 
-The Supervisor Agent owns the complete user journey.
+The Supervisor owns the user journey, state management, routing and clarification.
 
-It determines:
+## 2. File-Agnostic Entry
 
-- What the user should do next
-- Which module should execute
-- Which Flow Variables already exist
-- Whether evaluation can proceed
+Users upload available files. The system determines their business roles.
 
-No other module interacts directly with the user.
+## 3. Modular Execution
 
----
+Each module has exactly one responsibility.
 
-## 2. Modular Execution
+## 4. Explicit Handoffs
 
-Every module performs exactly one business responsibility.
+Every module receives and returns documented contracts.
 
-Modules never invoke each other directly.
+## 5. Flow Variable Driven
 
-Instead, execution is coordinated by the Supervisor.
+Shared business data is exchanged through Flow Variables.
 
----
+## 6. Deterministic Evaluation
 
-## 3. Explicit Handoffs
-
-Every transition between modules occurs through a documented handoff.
-
-Each handoff has:
-
-- Trigger
-- Preconditions
-- Inputs
-- Outputs
-- Destination
-
----
-
-## 4. Flow Variable Driven
-
-Workflow progression is determined exclusively through Flow Variables.
-
-The Supervisor never infers workflow state from conversation history.
+The Evaluation Engine remains deterministic except for semantic scoring.
 
 ---
 
@@ -83,67 +50,44 @@ The Supervisor never infers workflow state from conversation history.
 flowchart TD
 
 Start([START])
-
 Supervisor[Supervisor Agent]
-
+Intake[File Intake & Discovery]
+Assess[Assess Input Completeness]
+Clarify[Clarification]
 Criteria[Extract Evaluation Criteria]
-
 Config[Evaluation Configuration]
-
 Supplier[Extract Supplier Submission]
-
 Validate[Validate Questionnaire Structure]
-
 Canonical[Build Canonical Question Map]
-
 Knockout[Knockout Evaluation]
-
 Score[Qualitative Scoring]
-
 Weight[Weighted Score Calculation]
-
 Rank[Supplier Ranking]
-
 Recommend[Recommendation Generation]
-
 Report[Generate Excel Report]
-
 QA[Post Evaluation Q&A]
-
 End([END])
 
 Start --> Supervisor
-
-Supervisor --> Criteria
-
+Supervisor --> Intake
+Intake --> Assess
+Assess --> Clarify
+Clarify --> Assess
+Assess --> Criteria
 Criteria --> Config
-
-Config --> Supervisor
-
-Supervisor --> Supplier
-
+Config --> Supplier
+Assess --> Supplier
 Supplier --> Validate
-
 Validate --> Canonical
-
 Canonical --> Knockout
-
 Knockout --> Score
-
 Score --> Weight
-
 Weight --> Rank
-
 Rank --> Recommend
-
 Recommend --> Report
-
 Report --> Supervisor
-
 Supervisor --> QA
-
 QA --> Supervisor
-
 Supervisor --> End
 ```
 
@@ -151,11 +95,12 @@ Supervisor --> End
 
 # Processing Stages
 
-The orchestration consists of seven major stages.
-
 | Stage | Owner |
-|---------|--------|
+|---|---|
 | Conversation Initiation | Supervisor |
+| File Intake & Discovery | File Intake & Discovery |
+| Input Completeness Assessment | Supervisor |
+| Clarification | Supervisor |
 | Criteria Preparation | Criteria Processing + Evaluation Configuration |
 | Supplier Preparation | Supplier Processing |
 | Evaluation | Evaluation Engine |
@@ -167,237 +112,187 @@ The orchestration consists of seven major stages.
 
 # Stage 1 — Conversation Initiation
 
-Owner
+Entry condition:
 
-Supervisor
-
-Entry Condition
-
-```
+```text
 Conversation Started
 ```
 
-Responsibilities
+Supervisor:
 
-- Welcome user
-- Explain workflow
-- Request Evaluation Criteria workbook
+- Greets the user.
+- Explains that available Excel files can be uploaded without a prescribed template.
+- Sets `flow.conversationState = WAITING_FOR_FILES`.
 
-Produces
+---
 
+# Stage 2 — File Intake & Discovery
+
+Input:
+
+```text
+One or more uploaded files
 ```
-flow.conversationState = WAITING_FOR_CRITERIA
+
+The File Intake module:
+
+1. Inspects files.
+2. Discovers workbook sheets.
+3. Classifies files.
+4. Classifies sheets.
+5. Identifies suppliers.
+6. Identifies evaluation criteria.
+7. Records confidence and provenance.
+
+Output:
+
+```text
+flow.fileIntake
 ```
 
 ---
 
-# Stage 2 — Criteria Preparation
+# Stage 3 — Input Completeness Assessment
 
-Owner
+The Supervisor determines whether the current session has enough information.
 
+Possible outcomes:
+
+### Criteria available, suppliers not yet available
+
+```text
 Criteria Processing
+→ Evaluation Configuration
+→ Waiting / Supplier Processing
+```
 
-Sequence
+### Suppliers available, criteria already configured
 
 ```text
-Upload Workbook
-
-↓
-
-Extract Criteria
-
-↓
-
-Create flow.criteria
-
-↓
-
-Invoke Evaluation Configuration
+Supplier Processing
+→ Evaluation
 ```
 
-Produces
+### Material ambiguity
 
+```text
+Clarification
+→ Re-assess
 ```
-flow.criteria
+
+### Required information missing
+
+```text
+Request additional relevant file(s)
 ```
+
+The system should not ask users to classify or reformat files unless required.
 
 ---
 
-# Stage 3 — Evaluation Configuration
+# Stage 4 — Criteria Preparation
 
-Owner
-
-Evaluation Configuration Module
-
-Sequence
+Sequence:
 
 ```text
-Review Criteria
-
+flow.fileIntake
 ↓
-
-Confirm Weights
-
+Extract Evaluation Criteria
 ↓
-
-Configure Knockout Questions
-
+flow.criteria
 ↓
-
-Configure Expected Answers
-
+Evaluation Configuration
 ↓
-
-Approve Evaluation Configuration
-```
-
-Produces
-
-```
 flow.evaluationConfiguration
 ```
 
-Completion Condition
-
-Evaluation configuration approved.
+The criteria source remains immutable.
 
 ---
 
-# Stage 4 — Supplier Preparation
+# Stage 5 — Supplier Preparation
 
-Owner
-
-Supplier Processing
-
-Sequence
+Sequence:
 
 ```text
-Upload Supplier Workbooks
-
+flow.fileIntake
 ↓
-
-Extract Supplier Responses
-
+Extract Supplier Submission
 ↓
-
-Create Supplier Objects
-
-↓
-
-Store flow.suppliers[]
+flow.suppliers[]
 ```
 
-Supports
+Supports:
 
-- One supplier
-- Multiple suppliers
-- Incremental uploads
+- multiple supplier files
+- multiple suppliers within a workbook where detectable
+- incremental uploads
+- duplicate detection
 
 ---
 
-# Stage 5 — Evaluation
+# Stage 6 — Evaluation
 
-Owner
-
-Evaluation Engine
-
-Pipeline
+Sequence:
 
 ```text
 Validate Questionnaire Structure
-
 ↓
-
-Canonical Question Mapping
-
+Build Canonical Question Map
 ↓
-
-Apply Evaluation Configuration
-
-↓
-
 Knockout Evaluation
-
 ↓
-
 Qualitative Scoring
-
 ↓
-
 Weighted Score Calculation
-
 ↓
-
 Supplier Ranking
-
 ↓
-
 Recommendation Generation
 ```
 
-Produces
+Produces:
 
-```
+```text
 flow.evaluationResult
 ```
 
 ---
 
-# Stage 6 — Report Generation
+# Stage 7 — Report Generation
 
-Owner
+Consumes:
 
-Report Generator
-
-Consumes
-
-```
+```text
 flow.evaluationResult
 ```
 
-Produces
+Produces:
 
-```
+```text
 flow.report
 ```
 
-Deliverables
-
-- Executive Summary
-- Supplier Ranking
-- Detailed Scores
-- Knockout Summary
-- Recommendations
-- Excel Workbook
-
 ---
 
-# Stage 7 — Post-Evaluation Analysis
+# Stage 8 — Post-Evaluation Analysis
 
-Owner
+The Supervisor can route follow-up questions to Q&A using:
 
-Supervisor + Q&A
+```text
+flow.evaluationResult
+flow.report
+```
 
-Supported Activities
-
-- Compare suppliers
-- Explain scores
-- Explain knockout decisions
-- Modify weights
-- Recalculate rankings
-- Regenerate reports
-- Export reports
-
-No supplier extraction occurs during this stage.
+No extraction is repeated unless explicitly required by a new input or approved re-evaluation.
 
 ---
 
 # Supervisor Handoffs
 
-The Supervisor is responsible for initiating all module execution.
-
 | Handoff | Destination |
-|----------|-------------|
+|---|---|
+| handoff_fileDiscovery | File Intake & Discovery |
 | handoff_extractCriteria | Criteria Processing |
 | handoff_configureEvaluation | Evaluation Configuration |
 | handoff_extractSuppliers | Supplier Processing |
@@ -405,33 +300,39 @@ The Supervisor is responsible for initiating all module execution.
 | handoff_generateReport | Report Generator |
 | handoff_postEvaluationQA | Post Evaluation Q&A |
 
-No module may invoke another module directly.
+No module directly invokes another module's internal implementation.
 
 ---
 
 # Flow Variable Updates
 
 | Variable | Producer |
-|-----------|----------|
+|---|---|
+| flow.conversationState | Supervisor |
+| flow.fileIntake | File Intake & Discovery |
 | flow.criteria | Criteria Processing |
 | flow.evaluationConfiguration | Evaluation Configuration |
 | flow.suppliers | Supplier Processing |
+| flow.validationResult | Validation |
+| flow.canonicalQuestionMap | Canonical Mapping |
+| flow.knockoutResult | Knockout Evaluation |
+| flow.scoringResult | Qualitative Scoring |
+| flow.weightedScores | Weighted Calculation |
+| flow.rankingResult | Ranking |
 | flow.evaluationResult | Evaluation Engine |
 | flow.report | Report Generator |
-| flow.conversationState | Supervisor |
-
-Each Flow Variable has exactly one producer.
 
 ---
 
 # Entry Conditions
 
 | Module | Entry Condition |
-|----------|----------------|
-| Criteria Processing | Criteria workbook uploaded |
+|---|---|
+| File Intake & Discovery | One or more uploaded files |
+| Criteria Processing | Criteria source confidently identified |
 | Evaluation Configuration | flow.criteria exists |
-| Supplier Processing | Supplier workbook uploaded |
-| Evaluation Engine | Criteria, Configuration and Suppliers available |
+| Supplier Processing | Supplier source confidently identified |
+| Evaluation Engine | Criteria + Configuration + Suppliers available and validation allows evaluation |
 | Report Generator | Evaluation completed |
 | Q&A | Evaluation completed |
 
@@ -440,77 +341,61 @@ Each Flow Variable has exactly one producer.
 # Exit Conditions
 
 | Module | Exit Condition |
-|----------|----------------|
+|---|---|
+| File Intake & Discovery | flow.fileIntake created |
 | Criteria Processing | flow.criteria created |
-| Evaluation Configuration | flow.evaluationConfiguration created |
+| Evaluation Configuration | flow.evaluationConfiguration approved |
 | Supplier Processing | flow.suppliers populated |
 | Evaluation Engine | flow.evaluationResult created |
 | Report Generator | flow.report generated |
-| Post Evaluation Q&A | Conversation continues or ends |
+| Post-Evaluation Q&A | Conversation continues or ends |
 
 ---
 
 # Failure Handling
 
-Every orchestration stage shall fail independently.
+File Discovery failure
 
-Examples
+→ identify affected file
+→ explain in business language
+→ request replacement or clarification
 
 Criteria Processing failure
 
-↓
-
-Return to Supervisor
-
-↓
-
-Request corrected workbook
+→ return to Supervisor
+→ request another relevant evaluation/scoring source if necessary
 
 Supplier Processing failure
 
-↓
-
-Identify failed supplier
-
-↓
-
-Request re-upload
+→ identify affected supplier/file
+→ request targeted re-upload
 
 Evaluation failure
 
-↓
+→ present validation issues
+→ await correction/clarification
 
-Display validation errors
-
-↓
-
-Await correction
-
-Workflow execution shall never terminate unexpectedly.
+Workflow execution shall not terminate unexpectedly.
 
 ---
 
 # Design Constraints
 
-The orchestration enforces the following constraints.
-
-- Criteria must be configured before supplier evaluation.
-- Evaluation Configuration remains independent from Criteria Extraction.
-- Supplier Processing never performs evaluation.
-- Report Generation never performs scoring.
-- Source data remains immutable.
+- Users are not required to classify files manually.
+- Users are not required to follow prescribed file names.
+- Users are not required to use prescribed sheet or column names.
+- Internal normalized contracts remain strict.
+- Criteria and supplier source data remain immutable.
+- Material ambiguity must be resolved before it can affect evaluation.
+- Supplier Processing never scores.
+- Report Generation never scores.
 - Every module owns exactly one responsibility.
-- Every module communicates exclusively through Flow Variables.
-- Every transition is orchestrated by the Supervisor.
+- Every shared object has one producer.
 
 ---
 
 # Summary
 
-The Overall Orchestration defines the complete execution model for the RFP Qualitative Evaluation Agent.
+The orchestration now separates the flexible user-facing intake experience from the controlled procurement evaluation pipeline.
 
-The Supervisor Agent orchestrates every interaction while specialised modules perform independent responsibilities.
-
-The workflow progresses through a deterministic sequence of extraction, configuration, evaluation, reporting and post-evaluation analysis.
-
-This orchestration serves as the implementation blueprint for the QI Studio workflow and provides a stable foundation for all subsequent node-level specifications.
+This preserves the original architecture while making the solution suitable for real floor users who should be able to upload the Excel files they already have rather than conform to a technical template.
