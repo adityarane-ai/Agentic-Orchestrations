@@ -1,8 +1,8 @@
 # 01. Executive Summary
 
-**Document Version:** 0.1
+**Document Version:** 0.2
 
-**Status:** Draft
+**Status:** Updated for Floor-User UX
 
 **Parent Document:** Software Design Specification (SDS)
 
@@ -14,11 +14,27 @@ The RFP Qualitative Evaluation Agent is an enterprise-grade AI application desig
 
 The solution is being developed using **GEP Quantum Intelligence Studio (QI Studio)** and follows a modular, explainable, production-oriented architecture.
 
-Unlike conventional document summarization systems, this solution is designed to emulate the structured evaluation methodology used by experienced procurement consultants.
+A key Version 1.1 enhancement is a **low-friction, zero-template user experience**. Floor users should be able to upload the Excel files they already have without being required to understand internal workbook templates, filenames, sheet names or column conventions.
 
-Rather than generating simple summaries, the system extracts supplier responses, aligns them against predefined evaluation criteria, applies deterministic business rules, performs explainable qualitative scoring, ranks suppliers, generates consultant-ready reports, and continues supporting procurement teams through conversational post-evaluation analysis.
+The system uses a File Intake and Discovery layer to interpret uploaded workbooks, identify evaluation criteria and supplier submissions, inspect workbook structures, detect ambiguity and normalize the information into strict internal contracts.
 
-The system combines deterministic workflow orchestration with Large Language Model reasoning, ensuring that artificial intelligence is used only where semantic interpretation is required while keeping business logic transparent and auditable.
+The system therefore combines:
+
+```text
+Flexible User Inputs
+        ↓
+File Intelligence
+        ↓
+Structured Normalization
+        ↓
+Deterministic Evaluation
+        ↓
+Explainable Results
+```
+
+Rather than generating simple summaries, the system extracts supplier responses, aligns them against evaluation criteria, applies deterministic business rules, performs explainable qualitative scoring, ranks suppliers, generates consultant-ready reports and continues supporting procurement teams through conversational post-evaluation analysis.
+
+The system augments procurement consultants rather than replacing human judgement. Final sourcing decisions remain with the evaluation committee.
 
 ---
 
@@ -35,25 +51,18 @@ Large strategic sourcing events frequently involve:
 
 Current qualitative evaluation processes are largely manual.
 
-Consultants typically perform the following activities:
+In addition, forcing users to prepare files in a rigid format before automation can begin creates another operational burden and limits adoption on the procurement floor.
 
-- Read every supplier response
-- Compare responses against evaluation criteria
-- Determine whether mandatory requirements have been satisfied
-- Assign subjective scores
-- Calculate weighted totals
-- Rank suppliers
-- Produce executive summaries
-- Prepare stakeholder presentations
-- Answer follow-up questions throughout the sourcing process
+The solution therefore addresses both problems:
 
-Although this process produces high-quality evaluations, it requires significant manual effort and introduces variability between evaluators.
+1. Reduce manual evaluation effort.
+2. Remove unnecessary formatting and file-preparation burden from users.
 
 ---
 
 # Business Objective
 
-The objective of this project is to create an intelligent evaluation assistant capable of producing consultant-quality qualitative supplier evaluations while significantly reducing manual effort.
+The objective is to create an intelligent evaluation assistant capable of producing consultant-quality qualitative supplier evaluations while significantly reducing manual effort and minimizing user input constraints.
 
 The system should:
 
@@ -61,24 +70,22 @@ The system should:
 - Improve scoring consistency
 - Preserve explainability
 - Improve auditability
+- Accept practical real-world Excel inputs
 - Generate standardized reports
 - Support interactive consultant workflows
-
-The system is intended to augment procurement consultants rather than replace human judgement.
-
-Final sourcing decisions remain with the evaluation committee.
 
 ---
 
 # Project Goals
 
-The solution has been designed to achieve the following goals.
-
 ## Functional Goals
 
-- Extract supplier responses from structured Excel workbooks.
-- Extract evaluation criteria from standardized evaluation workbooks.
-- Validate structural compatibility between supplier submissions and evaluation criteria.
+- Accept available user-provided Excel files without prescribed filenames.
+- Discover workbook and sheet structures.
+- Identify evaluation criteria and supplier submissions automatically where possible.
+- Normalize evaluation criteria.
+- Normalize supplier responses.
+- Validate structural compatibility.
 - Build a unified canonical evaluation model.
 - Apply deterministic knockout evaluation.
 - Perform explainable qualitative scoring.
@@ -86,8 +93,6 @@ The solution has been designed to achieve the following goals.
 - Rank suppliers.
 - Generate consultant-ready Excel reports.
 - Support post-evaluation conversational analysis.
-
----
 
 ## Technical Goals
 
@@ -103,15 +108,18 @@ The solution shall be:
 - Maintainable
 - Observable
 - Token efficient
+- Robust to reasonable Excel structural variation
 
 ---
 
 # Scope
 
-Version 1 focuses on qualitative RFP evaluation using standardized Excel workbooks.
+Version 1.1 focuses on qualitative RFP evaluation using reasonably structured Excel inputs.
 
 Supported capabilities include:
 
+- Flexible file intake
+- File and sheet classification
 - Evaluation criteria extraction
 - Supplier response extraction
 - Structural validation
@@ -127,9 +135,9 @@ Supported capabilities include:
 
 # Out of Scope
 
-The following capabilities are intentionally excluded from Version 1.
+The following remain intentionally excluded from Version 1.1 unless separately approved:
 
-- Optical Character Recognition (OCR)
+- OCR
 - PDF extraction
 - Image-based supplier submissions
 - Multi-language evaluation
@@ -140,7 +148,7 @@ The following capabilities are intentionally excluded from Version 1.
 - Contract generation
 - Purchase order creation
 
-These capabilities may be considered for future releases.
+The system is flexible with respect to Excel structure, but this does not imply unrestricted support for arbitrary unstructured documents.
 
 ---
 
@@ -153,6 +161,7 @@ Primary users include:
 - Category Managers
 - Procurement Transformation Teams
 - Client Evaluation Committees
+- Procurement users on the floor who may not know the system's internal file model
 
 Secondary users include:
 
@@ -165,64 +174,45 @@ Secondary users include:
 
 # Design Philosophy
 
-The solution follows five core design philosophies.
-
 ## 1. Human-Centred Evaluation
 
-Artificial Intelligence assists consultants but does not replace professional judgement.
+AI assists consultants but does not replace professional judgement.
 
-The system provides recommendations, explanations and evidence rather than opaque decisions.
+## 2. Low-Friction Input
 
----
+Users provide available files rather than conforming to internal templates.
 
-## 2. Deterministic Processing
+## 3. Progressive Disclosure
 
-Business rules should always produce repeatable outputs.
+The system infers information where reliable and asks only for material clarification.
 
-Examples include:
+## 4. Deterministic Processing
 
-- Structure validation
-- Ranking
-- Weight calculations
-- Report generation
+Validation, weighting, arithmetic and ranking remain deterministic.
 
-These operations must never depend on probabilistic AI behaviour.
+## 5. Explainable AI
 
----
+Every material evaluation decision is traceable to evidence and rules.
 
-## 3. Explainable Artificial Intelligence
+## 6. Modular Architecture
 
-Every evaluation generated by the system must include sufficient evidence to explain:
+Each component performs one responsibility and communicates through explicit contracts.
 
-- Why a score was assigned
-- Why a supplier was eliminated
-- Why suppliers were ranked in a particular order
+## 7. Conversation-Driven Workflow
 
-No recommendation should exist without supporting reasoning.
-
----
-
-## 4. Modular Architecture
-
-The system is decomposed into independent modules.
-
-Each module performs one responsibility and communicates through well-defined data contracts.
-
-This improves maintainability, scalability and testing.
-
----
-
-## 5. Conversation-Driven Workflow
-
-The application is designed as an intelligent procurement assistant rather than a one-time document processing pipeline.
-
-The system guides consultants through the evaluation process while maintaining conversational continuity before, during and after evaluation.
+The Supervisor maintains continuity before, during and after evaluation.
 
 ---
 
 # Success Criteria
 
 The project will be considered successful when it can:
+
+✓ Accept reasonably structured Excel files without prescribed filenames or sheet names.
+
+✓ Identify evaluation criteria and supplier submissions in common workbook variations.
+
+✓ Ask targeted clarification questions only when required.
 
 ✓ Extract evaluation criteria accurately.
 
@@ -244,23 +234,23 @@ The project will be considered successful when it can:
 
 # Expected Business Benefits
 
-Implementation of the RFP Qualitative Evaluation Agent is expected to deliver:
+Implementation is expected to deliver:
 
 - Reduced evaluation effort
+- Reduced user preparation effort
 - Improved scoring consistency
 - Faster sourcing cycles
 - Increased transparency
 - Better auditability
 - Standardized evaluation methodology
 - Improved consultant productivity
-- Higher confidence in supplier selection decisions
+- Higher adoption by floor users
+- Higher confidence in supplier evaluation decisions
 
 ---
 
 # Relationship to the Remaining Specification
 
-This chapter establishes the business context for the solution.
+This chapter establishes the updated business context for the solution.
 
-Subsequent chapters progressively transition from business requirements into technical implementation.
-
-The remainder of this Software Design Specification should be interpreted within the context established by this Executive Summary.
+Subsequent chapters define the requirements, architecture, state machine, data flow, QI Studio implementation, Flow Variables and JSON contracts required to deliver the Version 1.1 experience.
