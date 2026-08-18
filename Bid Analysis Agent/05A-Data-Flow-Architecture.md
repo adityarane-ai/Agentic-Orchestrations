@@ -1,8 +1,8 @@
 # 05A. Data Flow Architecture
 
-**Document Version:** 1.0
+**Document Version:** 1.1
 
-**Status:** Architecture Frozen
+**Status:** Architecture Baseline Updated
 
 **Parent Document:** Software Design Specification (SDS)
 
@@ -10,61 +10,41 @@
 
 # Purpose
 
-This document defines how information moves throughout the RFP Qualitative Evaluation Agent.
+This document defines how information moves through the RFP Qualitative Evaluation Agent when users provide flexible Excel inputs.
 
-Unlike the System Architecture chapter, which defines software components, this document focuses on the lifecycle of business data.
+The architecture now separates **raw file discovery** from **business normalization**. Users may provide unfamiliar but reasonably structured workbooks; downstream evaluation still receives strict canonical objects.
 
-Every module in the system communicates exclusively through Flow Variables.
-
-No module directly accesses another module's internal implementation.
-
-This document establishes the canonical data movement rules for Version 1.0.
+Every module communicates through documented Flow Variables.
 
 ---
 
 # Data Flow Philosophy
 
-The architecture follows a pipeline-based data flow model.
-
-Every processing stage transforms business information into a richer representation without modifying previously generated source data.
-
-The pipeline follows the sequence below.
+The pipeline follows:
 
 ```text
 Raw Files
-
 ↓
-
-Extracted Objects
-
+File Intake & Discovery
 ↓
-
+Discovered File/Sheet Objects
+↓
+Normalized Criteria + Suppliers
+↓
 Configured Evaluation
-
 ↓
-
 Validated Objects
-
 ↓
-
-Canonical Objects
-
+Canonical Evaluation Model
 ↓
-
 Evaluation Results
-
 ↓
-
 Reports
-
 ↓
-
 Conversation Knowledge
 ```
 
-Each stage produces data consumed by the next stage.
-
-Previous stages remain immutable.
+Source information remains traceable and immutable after acceptance into downstream processing.
 
 ---
 
@@ -73,147 +53,160 @@ Previous stages remain immutable.
 ```mermaid
 flowchart LR
 
-CriteriaWorkbook --> CriteriaProcessing
-
-CriteriaProcessing --> flow.criteria
-
-flow.criteria --> EvaluationConfiguration
-
-EvaluationConfiguration --> flow.evaluationConfiguration
-
-SupplierWorkbook --> SupplierProcessing
-
-SupplierProcessing --> flow.suppliers
-
-flow.criteria --> EvaluationEngine
-
-flow.evaluationConfiguration --> EvaluationEngine
-
-flow.suppliers --> EvaluationEngine
-
-EvaluationEngine --> flow.evaluationResult
-
-flow.evaluationResult --> ReportGenerator
-
-ReportGenerator --> flow.report
-
-flow.evaluationResult --> PostEvaluationQA
+RawFiles[User Files] --> FileIntake[File Intake & Discovery]
+FileIntake --> flowFileIntake[flow.fileIntake]
+flowFileIntake --> CriteriaProcessing[Criteria Processing]
+flowFileIntake --> SupplierProcessing[Supplier Processing]
+flowFileIntake --> Supervisor[Supervisor / Clarification]
+CriteriaProcessing --> flowCriteria[flow.criteria]
+flowCriteria --> Config[Evaluation Configuration]
+Config --> flowConfig[flow.evaluationConfiguration]
+SupplierProcessing --> flowSuppliers[flow.suppliers]
+flowCriteria --> Validation[Validation]
+flowSuppliers --> Validation
+flowCriteria --> Canonical[Canonical Mapping]
+flowConfig --> Canonical
+flowSuppliers --> Canonical
+Validation --> Canonical
+Canonical --> Evaluation[Evaluation Engine]
+Evaluation --> flowResult[flow.evaluationResult]
+flowResult --> Report[Report Generator]
+Report --> flowReport[flow.report]
+flowResult --> QA[Post-Evaluation Q&A]
 ```
 
 ---
 
 # Core Data Objects
 
-The system operates around six primary business objects.
-
-| Object | Owner | Mutable |
-|---------|-------|---------|
-| criteria | Criteria Processing | No |
-| evaluationConfiguration | Evaluation Configuration | Yes |
-| suppliers | Supplier Processing | No |
-| canonicalQuestionMap | Evaluation Engine | No |
-| evaluationResult | Evaluation Engine | No |
-| report | Report Generator | No |
-
-Each object has a single owner.
-
-Only the owning module may create or modify the object.
+| Object | Owner | Mutable | Purpose |
+|---|---|---:|---|
+| fileIntake | File Intake & Discovery | No after acceptance | Discovered file/sheet roles, entities, provenance and confidence |
+| criteria | Criteria Processing | No | Normalized source evaluation criteria |
+| evaluationConfiguration | Evaluation Configuration | Yes before evaluation | Business-approved rules |
+| suppliers | Supplier Processing | No | Normalized supplier responses |
+| validationResult | Validation | No | Structural compatibility findings |
+| canonicalQuestionMap | Canonical Mapping | No | Single evaluation model |
+| knockoutResult | Knockout Evaluation | No | Supplier knockout outcomes |
+| scoringResult | Qualitative Scoring | No | Semantic scores and evidence |
+| weightedScores | Weighted Calculation | No | Deterministic weighted scores |
+| rankingResult | Supplier Ranking | No | Deterministic supplier ranking |
+| evaluationResult | Evaluation Engine | No | Complete evaluation result |
+| report | Report Generator | No | Generated deliverables |
 
 ---
 
 # Data Ownership
 
-The architecture enforces strict ownership.
-
 ```mermaid
 flowchart TD
 
+FileIntake --> fileIntake
 CriteriaProcessing --> criteria
-
 EvaluationConfiguration --> evaluationConfiguration
-
 SupplierProcessing --> suppliers
-
-EvaluationEngine --> canonicalQuestionMap
-
+Validation --> validationResult
+CanonicalMapping --> canonicalQuestionMap
+KnockoutEvaluation --> knockoutResult
+Scoring --> scoringResult
+WeightedCalculation --> weightedScores
+Ranking --> rankingResult
 EvaluationEngine --> evaluationResult
-
 ReportGenerator --> report
 ```
 
-Ownership shall never overlap.
+Every object has one producer.
 
 ---
 
-# Data Lifecycle
-
-## Stage 1 — Criteria Extraction
+# Stage 0 — File Intake & Discovery
 
 Input
 
-```
-Evaluation Workbook
+```text
+User-uploaded files
 ```
 
 Output
 
-```
-flow.criteria
+```text
+flow.fileIntake
 ```
 
-Characteristics
+The object records:
 
-- Immutable
-- Represents source data
-- Never modified after extraction
+- file identity
+- file name
+- file type
+- workbook metadata where available
+- sheet inventory
+- file classification
+- sheet classifications
+- detected supplier names
+- detected event/criteria indicators
+- confidence
+- ambiguity flags
+- provenance
+
+The object does not contain supplier scores or evaluation decisions.
 
 ---
 
-## Stage 2 — Evaluation Configuration
+# Stage 1 — Criteria Extraction
 
 Consumes
 
+```text
+flow.fileIntake
 ```
+
+Output
+
+```text
+flow.criteria
+```
+
+The normalized criteria object preserves source provenance and distinguishes explicit source values from inferred values.
+
+---
+
+# Stage 2 — Evaluation Configuration
+
+Consumes
+
+```text
 flow.criteria
 ```
 
 Produces
 
-```
+```text
 flow.evaluationConfiguration
 ```
 
-Characteristics
-
-- Mutable
-- Represents business-approved evaluation rules
-- Can be regenerated without re-extracting criteria
+This object contains business-approved evaluation rules and remains separate from source criteria.
 
 ---
 
-## Stage 3 — Supplier Extraction
+# Stage 3 — Supplier Extraction
 
 Consumes
 
-```
-Supplier Workbook
+```text
+flow.fileIntake
 ```
 
 Produces
 
-```
+```text
 flow.suppliers[]
 ```
 
-Characteristics
-
-- Immutable
-- One object per supplier
-- Preserves workbook structure
+Each supplier object preserves response wording and source provenance.
 
 ---
 
-## Stage 4 — Validation
+# Stage 4 — Validation
 
 Consumes
 
@@ -222,91 +215,85 @@ Consumes
 
 Produces
 
-```
-validationResult
+```text
+flow.validationResult
 ```
 
-Purpose
+Validation distinguishes:
 
-Verify that supplier responses can be evaluated against the extracted criteria.
+- errors that prevent reliable evaluation
+- warnings that do not prevent evaluation
+- mapping gaps requiring clarification
 
 ---
 
-## Stage 5 — Canonical Mapping
+# Stage 5 — Canonical Mapping
 
 Consumes
 
 - flow.criteria
 - flow.evaluationConfiguration
 - flow.suppliers
+- flow.validationResult
 
 Produces
 
+```text
+flow.canonicalQuestionMap
 ```
-canonicalQuestionMap
-```
 
-Purpose
-
-Merge supplier responses and evaluation rules into a single evaluation model.
-
-The canonical model becomes the single source of truth for all downstream evaluation.
+The canonical model is the single source of truth for downstream evaluation.
 
 ---
 
-## Stage 6 — Evaluation
+# Stage 6 — Evaluation
 
 Consumes
 
-```
-canonicalQuestionMap
+```text
+flow.canonicalQuestionMap
 ```
 
-Produces
+Produces the controlled evaluation objects:
 
-```
+```text
+flow.knockoutResult
+flow.scoringResult
+flow.weightedScores
+flow.rankingResult
 flow.evaluationResult
 ```
 
-The Evaluation Engine performs:
-
-- Knockout Evaluation
-- Qualitative Scoring
-- Weighted Calculations
-- Supplier Ranking
-- Recommendation Generation
-
 ---
 
-## Stage 7 — Reporting
+# Stage 7 — Reporting
 
 Consumes
 
-```
+```text
 flow.evaluationResult
 ```
 
 Produces
 
-```
+```text
 flow.report
 ```
 
-No procurement logic exists within the reporting layer.
+No procurement logic exists within reporting.
 
 ---
 
-## Stage 8 — Post-Evaluation Analysis
+# Stage 8 — Post-Evaluation Analysis
 
 Consumes
 
-```
+```text
 flow.evaluationResult
-
 flow.report
 ```
 
-Allows consultants to perform conversational analysis without repeating evaluation.
+Supports conversational analysis without repeating extraction or scoring unless explicitly requested after an approved change.
 
 ---
 
@@ -315,24 +302,21 @@ Allows consultants to perform conversational analysis without repeating evaluati
 ```mermaid
 flowchart TD
 
+fileIntake --> criteria
+fileIntake --> suppliers
 criteria --> evaluationConfiguration
-
 criteria --> validationResult
-
 suppliers --> validationResult
-
-validationResult --> canonicalQuestionMap
-
 criteria --> canonicalQuestionMap
-
 evaluationConfiguration --> canonicalQuestionMap
-
 suppliers --> canonicalQuestionMap
-
-canonicalQuestionMap --> evaluationResult
-
+validationResult --> canonicalQuestionMap
+canonicalQuestionMap --> knockoutResult
+knockoutResult --> scoringResult
+scoringResult --> weightedScores
+weightedScores --> rankingResult
+rankingResult --> evaluationResult
 evaluationResult --> report
-
 evaluationResult --> QA
 ```
 
@@ -340,104 +324,52 @@ evaluationResult --> QA
 
 # Immutability Rules
 
-The following objects are immutable after creation.
+The following are immutable after creation/acceptance:
 
-| Object | Reason |
-|----------|---------|
-| criteria | Source data |
-| suppliers | Source data |
-| canonicalQuestionMap | Evaluation baseline |
-| evaluationResult | Auditability |
-| report | Historical output |
+- flow.fileIntake
+- flow.criteria
+- flow.suppliers
+- flow.validationResult
+- flow.canonicalQuestionMap
+- flow.knockoutResult
+- flow.scoringResult
+- flow.weightedScores
+- flow.rankingResult
+- flow.evaluationResult
+- flow.report
 
-Only
+Only `flow.evaluationConfiguration` is intentionally configurable before evaluation or during an approved re-evaluation cycle.
 
-```
-flow.evaluationConfiguration
-```
+---
 
-is mutable during the evaluation lifecycle.
+# Provenance Rules
 
-This allows procurement consultants to modify business rules without changing source information.
+Material extracted fields should retain enough provenance to identify:
+
+- source file
+- source sheet where available
+- source row/column or source location where available
+- whether the value was explicit or inferred
+- confidence where inference was used
+
+This is essential for explainable procurement evaluation.
 
 ---
 
 # Data Contract Rules
 
-Every shared object shall satisfy the following principles.
-
-## Single Producer
-
-Every object has exactly one producer.
-
----
-
-## Multiple Consumers
-
-Objects may have multiple consumers.
-
----
-
-## Immutable Source Data
-
-Source extraction objects shall never be modified.
-
----
-
-## Explicit Contracts
-
-All shared objects shall conform to documented JSON schemas.
-
----
-
-## Version Stability
-
-JSON contracts shall remain stable throughout Version 1.0.
-
-Breaking changes require a new SDS version.
-
----
-
-# Error Propagation
-
-Errors propagate independently from business data.
-
-```text
-Supplier Extraction
-
-↓
-
-Supplier Error
-
-↓
-
-Supervisor
-
-↓
-
-User
-```
-
-Business objects remain unchanged.
-
----
-
-# Design Decisions
-
-| Decision | Rationale |
-|-----------|-----------|
-| Separate Criteria and Configuration | Preserve source data |
-| Canonical Question Map | Single evaluation model |
-| Immutable source objects | Auditability |
-| Single Producer Rule | Prevent conflicting ownership |
-| Flow Variables only | Loose coupling |
+1. Every shared object has exactly one producer.
+2. Consumers treat shared objects as read-only.
+3. Source data is never overwritten by inferred values.
+4. Unknown values use `null` rather than fabricated content.
+5. Arrays exist even when empty.
+6. Material uncertainty is represented explicitly.
+7. All downstream evaluation operates on normalized contracts.
 
 ---
 
 # Summary
 
-The Data Flow Architecture defines the movement, ownership and lifecycle of every business object used by the RFP Qualitative Evaluation Agent.
+Version 1.1 introduces `flow.fileIntake` as the controlled boundary between flexible user files and the strict procurement data model.
 
-By separating immutable source data from configurable business rules and evaluation outputs, the architecture ensures consistency, auditability and maintainability.
-
-Every downstream component consumes well-defined data contracts, enabling modular implementation and predictable behaviour throughout the evaluation lifecycle.
+This enables a low-friction user experience without weakening internal data discipline, provenance, explainability or deterministic evaluation.
