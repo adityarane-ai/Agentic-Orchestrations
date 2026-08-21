@@ -19,54 +19,66 @@ The architecture uses one Master Deep Agent with three direct specialist sub-age
 # Architectural Overview
 
 ```mermaid
-flowchart TD
+flowchart TB
+    U([User<br/>RFP + Supplier Files]) --> M
 
-U[User + Uploaded Files]
-M[MASTER DEEP AGENT]
-C[Criteria Specialist]
-S[Supplier Evidence Specialist]
-E[Qualitative Evaluation Specialist]
-B[Bid Understanding Package]
-H[Human Confirmation + Knockout Input]
-CFG[Frozen Evaluation Configuration]
-V[Validation]
-MAP[Canonical Mapping]
-K[Confirmed Knockout Execution]
-Q[Qualitative Scoring]
-W[Weighted Score Calculation]
-R[Deterministic Ranking]
-SYN[Master Challenge + Synthesis]
-REP[Four-Tab Excel Report]
-QA[Post-Evaluation Q&A]
+    subgraph AGENT[MASTER DEEP AGENT — RFP QUALITATIVE BID ANALYSIS]
+        M[Master Orchestrator<br/>Plan • Delegate • Reconcile • Challenge]
+        P{Determine required work}
+        M --> P
 
-U --> M
-M --> C
-M --> S
-C --> B
-S --> B
-B --> M
-M --> H
-H --> CFG
-CFG --> V
-V --> MAP
-MAP --> K
-K --> Q
-C --> Q
-S --> Q
-M --> E
-E --> SYN
-Q --> W
-W --> R
-R --> SYN
-SYN --> REP
-REP --> M
-M --> QA
-QA --> M
+        P -->|Criteria / RFP understanding| C[Criteria Specialist]
+        P -->|Supplier response / evidence| S[Supplier Evidence Specialist]
+        P -->|Evaluation / comparison| E[Qualitative Evaluation Specialist]
+        P -->|Simple follow-up| SELF[Master handles directly]
 
-M -. re-analysis .-> C
-M -. re-analysis .-> S
-M -. re-analysis .-> E
+        C --> B[Bid Understanding + Evidence Reconciliation]
+        S --> B
+        SELF --> B
+        B --> SUFF{Evidence / understanding sufficient?}
+        SUFF -->|No| REWORK[Targeted retrieval / specialist re-analysis]
+        REWORK --> C
+        REWORK --> S
+        REWORK --> E
+        SUFF -->|Yes| H[Human Confirmation Gate]
+
+        H -->|Corrections| B
+        H -->|Confirmed| CFG[Frozen Evaluation Configuration]
+
+        CFG --> E
+        E --> QC[Master Challenge / QC]
+        QC -->|Insufficient / inconsistent| E
+        QC -->|Accepted| D
+    end
+
+    subgraph DET[DETERMINISTIC EVALUATION LAYER]
+        D[Configuration + Input Validation]
+        D --> MAP[Canonical Mapping]
+        MAP --> K[Confirmed Knockout Execution]
+        K --> KD{Knockout ambiguity?}
+        KD -->|Yes| H
+        KD -->|No| SV[Score Validation / Calculation]
+        SV --> W[Weighted Score Calculation]
+        W --> R[Qualified Supplier Ranking]
+        R --> RB[Evaluation Result Builder]
+    end
+
+    RB --> SYN[Master Final Procurement Synthesis]
+    SYN --> REP[Four-Tab Excel Report]
+    REP --> OUT([Output])
+    SYN --> QA[Post-Evaluation Q&A / Scenarios]
+    QA -->|Explain stored result| SYN
+    QA -->|Approved rule / weight change| CFG
+
+    TOOLS[Capability Layer<br/>Files • Document Extraction • Knowledge • Tables • System Capabilities • Export]
+    M -. uses .-> TOOLS
+    C -. uses .-> TOOLS
+    S -. uses .-> TOOLS
+    E -. uses .-> TOOLS
+    REP -. uses .-> TOOLS
 ```
+
+The canvas may remain compact; the adaptive orchestration occurs inside the Master Deep Agent.
 
 ---
 
@@ -74,12 +86,12 @@ M -. re-analysis .-> E
 
 | Component | Type | Primary responsibility |
 |---|---|---|
-| Master Deep Agent | Deep Agent | Planning, delegation, reconciliation, HITL, synthesis |
+| Master Deep Agent | Deep Agent | Planning, delegation, reconciliation, HITL, challenge/QC, synthesis |
 | Criteria Specialist | Sub-agent | RFP/evaluation framework understanding |
 | Supplier Specialist | Sub-agent | Supplier response/evidence extraction |
 | Evaluation Specialist | Sub-agent | Qualitative evaluation/comparison |
 | Human Confirmation Gate | Conversation/control | Confirm evaluation understanding and knockout rules |
-| Validation | Script | Deterministic structural validation |
+| Validation | Script | Deterministic structural/configuration validation |
 | Canonical Mapping | Script | Deterministic normalized evaluation model |
 | Knockout Execution | Script | Execute confirmed acceptance conditions |
 | Qualitative Scoring | Agent | Semantic assessment against approved rubric |
@@ -207,15 +219,16 @@ Semantic scoring remains an agent responsibility, but the numeric calculations u
 
 ```mermaid
 flowchart TD
-
-A[Agent / Script Output] --> B{Valid?}
-B -->|Yes| C[Continue]
-B -->|No, recoverable| D[Targeted Re-analysis / Correction]
-D --> A
-B -->|Material human decision| E[Human Confirmation]
-E --> F[Update Configuration / Input]
-F --> A
-B -->|Unrecoverable source issue| G[Business-language Error]
+    A[Agent / Script Output] --> B{Valid and sufficient?}
+    B -->|Yes| C[Continue]
+    B -->|Recoverable| D[Targeted Re-analysis / Correction]
+    D --> A
+    B -->|Material business ambiguity| E[Human Confirmation]
+    E --> F[Update / Confirm Configuration]
+    F --> A
+    B -->|Unrecoverable source issue| G[Business-language Error]
+    G --> H[User Correction / Re-upload]
+    H --> A
 ```
 
 The system must isolate affected inputs where possible rather than restarting the entire evaluation.
