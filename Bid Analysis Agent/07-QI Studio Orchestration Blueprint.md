@@ -20,21 +20,20 @@ The canvas should remain compact: the primary orchestration intelligence lives i
 
 ```mermaid
 flowchart LR
+    START((START)) --> MASTER[MASTER DEEP AGENT<br/>RFP QUALITATIVE BID ANALYSIS]
+    MASTER --> DET[DETERMINISTIC PROCESSING<br/>Script / approved deterministic capabilities]
+    DET --> MASTER
+    MASTER --> EXPORT[REPORT EXPORT<br/>Four-tab Excel]
+    EXPORT --> OUTPUT((OUTPUT))
 
-START((START)) --> MASTER[MASTER DEEP AGENT<br/>RFP QUALITATIVE BID ANALYSIS]
-MASTER --> DET[Deterministic Processing / Script Nodes]
-DET --> OUTPUT((OUTPUT))
+    MASTER -. internal dynamic delegation .-> C[Criteria Specialist]
+    MASTER -. internal dynamic delegation .-> S[Supplier Evidence Specialist]
+    MASTER -. internal dynamic delegation .-> E[Evaluation Specialist]
+    MASTER -. human gate .-> H[Human Confirmation]
+    H -. confirmed configuration .-> MASTER
 ```
 
-The Master Deep Agent internally orchestrates:
-
-```text
-Specialist 1 — RFP & Evaluation Criteria Analyst
-Specialist 2 — Supplier Response & Evidence Analyst
-Specialist 3 — Qualitative Evaluation & Comparison Analyst
-```
-
-No fourth direct specialist is required for V1.
+The Deep Agent contains the specialist delegation and HITL interaction internally. The canvas does not need a separate node for every logical stage.
 
 ---
 
@@ -197,47 +196,46 @@ A new configuration after evaluation creates a new scenario/version.
 
 ---
 
-# Recommended Canvas / Execution Pattern
+# Recommended Execution Pattern
 
-```text
-START
-  ↓
-MASTER DEEP AGENT
-  │
-  ├── Discovery / planning
-  │     ├── Criteria Specialist
-  │     └── Supplier Specialist
-  │
-  ├── Bid Understanding
-  │
-  ├── Human Confirmation
-  │     └── Knockout Configuration
-  │
-  ├── Evaluation Specialist
-  │
-  ├── Master Challenge / QC
-  │
-  └── Handoff to deterministic processing
-              ↓
-      Configuration Validation
-              ↓
-      Questionnaire Validation
-              ↓
-      Canonical Mapping
-              ↓
-      Confirmed Knockout Evaluation
-              ↓
-      Score Validation / Calculation
-              ↓
-      Weighted Calculation
-              ↓
-      Ranking
-              ↓
-      Result Builder
-              ↓
-      Report Export
-              ↓
-            OUTPUT
+```mermaid
+flowchart TD
+    START([START]) --> M[Master Deep Agent]
+    M --> PLAN[Plan / Decompose / Check Dependencies]
+    PLAN --> DISC{Discovery required?}
+
+    DISC -->|Criteria| C[Criteria Specialist]
+    DISC -->|Supplier Evidence| S[Supplier Specialist]
+    C --> B[Bid Understanding]
+    S --> B
+    B --> H[Human Confirmation + Knockout Configuration]
+    H --> CFG[Frozen Evaluation Configuration]
+
+    CFG --> D1[D-001 Configuration Validation]
+    D1 --> D2[D-002 Questionnaire Validation]
+    D2 --> D3[D-003 Canonical Mapping]
+    D3 --> E[Evaluation Specialist]
+    E --> QC[Master Challenge / QC]
+    QC -->|Re-analysis| E
+    QC -->|Accepted| D4[D-004 Confirmed Knockout Evaluation]
+
+    D4 --> KO{Knockout result}
+    KO -->|Ambiguous| H
+    KO -->|Fail| DQ[Disqualified]
+    KO -->|Pass| D5[D-005 Score Validation / Calculation]
+
+    D5 --> D6[D-006 Weighted Score]
+    D6 --> D7[D-007 Qualified Ranking]
+    DQ --> D8[D-008 Result Builder]
+    D7 --> D8
+    D8 --> M2[Master Final Synthesis]
+    M2 --> D9[D-009 Report Export]
+    D9 --> OUT([OUTPUT])
+
+    M -. dynamic parallel delegation .-> C
+    M -. dynamic parallel delegation .-> S
+    M -. targeted re-analysis .-> C
+    M -. targeted re-analysis .-> S
 ```
 
 ---
