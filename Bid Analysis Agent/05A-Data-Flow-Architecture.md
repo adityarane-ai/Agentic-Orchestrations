@@ -1,8 +1,8 @@
 # 05A. Data Flow Architecture
 
-**Document Version:** 1.1
+**Document Version:** 1.2
 
-**Status:** Architecture Baseline Updated
+**Status:** Deep Agent + HITL Data Contract Baseline
 
 **Parent Document:** Software Design Specification (SDS)
 
@@ -10,366 +10,285 @@
 
 # Purpose
 
-This document defines how information moves through the RFP Qualitative Evaluation Agent when users provide flexible Excel inputs.
+This document defines how information moves through the RFP Qualitative Bid Analysis Agent.
 
-The architecture now separates **raw file discovery** from **business normalization**. Users may provide unfamiliar but reasonably structured workbooks; downstream evaluation still receives strict canonical objects.
-
-Every module communicates through documented Flow Variables.
-
----
-
-# Data Flow Philosophy
-
-The pipeline follows:
-
-```text
-Raw Files
-↓
-File Intake & Discovery
-↓
-Discovered File/Sheet Objects
-↓
-Normalized Criteria + Suppliers
-↓
-Configured Evaluation
-↓
-Validated Objects
-↓
-Canonical Evaluation Model
-↓
-Evaluation Results
-↓
-Reports
-↓
-Conversation Knowledge
-```
-
-Source information remains traceable and immutable after acceptance into downstream processing.
+The architecture separates source discovery, semantic normalization, human-confirmed configuration, qualitative reasoning and deterministic processing.
 
 ---
 
 # High-Level Data Flow
 
 ```mermaid
-flowchart LR
+flowchart TD
 
-RawFiles[User Files] --> FileIntake[File Intake & Discovery]
-FileIntake --> flowFileIntake[flow.fileIntake]
-flowFileIntake --> CriteriaProcessing[Criteria Processing]
-flowFileIntake --> SupplierProcessing[Supplier Processing]
-flowFileIntake --> Supervisor[Supervisor / Clarification]
-CriteriaProcessing --> flowCriteria[flow.criteria]
-flowCriteria --> Config[Evaluation Configuration]
-Config --> flowConfig[flow.evaluationConfiguration]
-SupplierProcessing --> flowSuppliers[flow.suppliers]
-flowCriteria --> Validation[Validation]
-flowSuppliers --> Validation
-flowCriteria --> Canonical[Canonical Mapping]
-flowConfig --> Canonical
-flowSuppliers --> Canonical
-Validation --> Canonical
-Canonical --> Evaluation[Evaluation Engine]
-Evaluation --> flowResult[flow.evaluationResult]
-flowResult --> Report[Report Generator]
-Report --> flowReport[flow.report]
-flowResult --> QA[Post-Evaluation Q&A]
+RAW[User Files] --> M[Master Deep Agent]
+M --> FI[Discovery Specialists]
+FI --> FILE[flow.fileIntake]
+FILE --> CRIT[flow.criteria]
+FILE --> SUP[flow.suppliers]
+CRIT --> BP[Bid Understanding Package]
+SUP --> BP
+BP --> HUMAN[Human Confirmation]
+HUMAN --> CFG[flow.evaluationConfiguration]
+CRIT --> VAL[Validation]
+SUP --> VAL
+CFG --> VAL
+VAL --> CAN[Canonical Evaluation Model]
+CAN --> KO[Confirmed Knockout Execution]
+CAN --> QS[Qualitative Scoring]
+KO --> QS
+QS --> SCORE[Deterministic Score Calculation]
+CFG --> SCORE
+SCORE --> RANK[Deterministic Ranking]
+RANK --> RESULT[flow.evaluationResult]
+RESULT --> REPORT[Four-Tab Report]
+RESULT --> QA[Post-Evaluation Q&A]
 ```
 
 ---
 
 # Core Data Objects
 
-| Object | Owner | Mutable | Purpose |
+| Object | Producer | Mutable | Purpose |
 |---|---|---:|---|
-| fileIntake | File Intake & Discovery | No after acceptance | Discovered file/sheet roles, entities, provenance and confidence |
-| criteria | Criteria Processing | No | Normalized source evaluation criteria |
-| evaluationConfiguration | Evaluation Configuration | Yes before evaluation | Business-approved rules |
-| suppliers | Supplier Processing | No | Normalized supplier responses |
-| validationResult | Validation | No | Structural compatibility findings |
-| canonicalQuestionMap | Canonical Mapping | No | Single evaluation model |
-| knockoutResult | Knockout Evaluation | No | Supplier knockout outcomes |
-| scoringResult | Qualitative Scoring | No | Semantic scores and evidence |
-| weightedScores | Weighted Calculation | No | Deterministic weighted scores |
-| rankingResult | Supplier Ranking | No | Deterministic supplier ranking |
-| evaluationResult | Evaluation Engine | No | Complete evaluation result |
-| report | Report Generator | No | Generated deliverables |
+| fileIntake | Discovery | No after acceptance | File/sheet roles, entities, provenance and confidence |
+| criteria | Criteria Specialist | No | Normalized source evaluation framework |
+| suppliers | Supplier Specialist | No | Normalized supplier evidence/responses |
+| clarificationPackage | Master | No | Human-readable current understanding and required confirmations |
+| evaluationConfiguration | Human confirmation workflow | Only before freeze | Approved business rules for a run |
+| validationResult | Validation | No | Structural findings |
+| canonicalQuestionMap | Canonical Mapping | No | Single evaluation representation |
+| knockoutResult | Knockout Script | No | Confirmed-rule outcomes |
+| scoringResult | Evaluation Specialist | No | Semantic assessment/evidence |
+| weightedScores | Weighted Calculation | No | Deterministic scores |
+| rankingResult | Ranking Script | No | Deterministic qualified ranking |
+| evaluationResult | Result Builder | No | Complete run result |
+| report | Report Generator | No | Generated deliverable |
 
 ---
 
 # Data Ownership
 
-```mermaid
-flowchart TD
+Every shared object has one producer. Consumers treat it as read-only.
 
-FileIntake --> fileIntake
-CriteriaProcessing --> criteria
-EvaluationConfiguration --> evaluationConfiguration
-SupplierProcessing --> suppliers
+```mermaid
+flowchart LR
+
+Discovery --> fileIntake
+CriteriaSpecialist --> criteria
+SupplierSpecialist --> suppliers
+Master --> clarificationPackage
+HumanGate --> evaluationConfiguration
 Validation --> validationResult
 CanonicalMapping --> canonicalQuestionMap
-KnockoutEvaluation --> knockoutResult
-Scoring --> scoringResult
+Knockout --> knockoutResult
+EvaluationSpecialist --> scoringResult
 WeightedCalculation --> weightedScores
 Ranking --> rankingResult
-EvaluationEngine --> evaluationResult
+ResultBuilder --> evaluationResult
 ReportGenerator --> report
 ```
 
-Every object has one producer.
+---
+
+# Stage 0 — Discovery
+
+Input: user-uploaded files.
+
+Output: `flow.fileIntake`.
+
+The object records file identity, role, sheet inventory, sheet roles, supplier identity candidates, criteria indicators, confidence, ambiguity and provenance.
+
+No score or procurement decision exists in this object.
 
 ---
 
-# Stage 0 — File Intake & Discovery
+# Stage 1 — Criteria and Supplier Normalization
 
-Input
+Criteria Specialist produces `flow.criteria`.
 
-```text
-User-uploaded files
-```
+Supplier Specialist produces `flow.suppliers`.
 
-Output
-
-```text
-flow.fileIntake
-```
-
-The object records:
-
-- file identity
-- file name
-- file type
-- workbook metadata where available
-- sheet inventory
-- file classification
-- sheet classifications
-- detected supplier names
-- detected event/criteria indicators
-- confidence
-- ambiguity flags
-- provenance
-
-The object does not contain supplier scores or evaluation decisions.
+Both preserve source wording and provenance and distinguish explicit source facts from inferred mappings.
 
 ---
 
-# Stage 1 — Criteria Extraction
+# Stage 2 — Bid Clarification Package
 
-Consumes
+The Master combines the discovered outputs into `flow.clarificationPackage`.
 
-```text
-flow.fileIntake
-```
+The package exposes:
 
-Output
+- what the agent believes the RFP/evaluation framework contains
+- what suppliers were identified
+- scoring and weights found
+- candidate knockout requirements
+- proposed acceptance conditions
+- ambiguities
+- missing information
+- items requiring confirmation
 
-```text
-flow.criteria
-```
-
-The normalized criteria object preserves source provenance and distinguishes explicit source values from inferred values.
-
----
-
-# Stage 2 — Evaluation Configuration
-
-Consumes
-
-```text
-flow.criteria
-```
-
-Produces
-
-```text
-flow.evaluationConfiguration
-```
-
-This object contains business-approved evaluation rules and remains separate from source criteria.
+This package is presented to the human evaluator.
 
 ---
 
-# Stage 3 — Supplier Extraction
+# Stage 3 — Evaluation Configuration
 
-Consumes
+Human confirmation creates `flow.evaluationConfiguration`.
 
-```text
-flow.fileIntake
-```
+The configuration is separate from source criteria and records:
 
-Produces
+- approved status
+- configuration version
+- scoring scale/rubric
+- weights
+- knockout rules
+- acceptance conditions
+- exclusions
+- included sections
+- confirmation metadata
+- assumptions/notes
 
-```text
-flow.suppliers[]
-```
-
-Each supplier object preserves response wording and source provenance.
+Once approved, the configuration is frozen for the run.
 
 ---
 
 # Stage 4 — Validation
 
-Consumes
+Consumes criteria, suppliers and confirmed configuration.
 
-- flow.criteria
-- flow.suppliers
+Produces `flow.validationResult`.
 
-Produces
-
-```text
-flow.validationResult
-```
-
-Validation distinguishes:
-
-- errors that prevent reliable evaluation
-- warnings that do not prevent evaluation
-- mapping gaps requiring clarification
+Errors prevent unreliable evaluation; warnings may be passed through.
 
 ---
 
 # Stage 5 — Canonical Mapping
 
-Consumes
+Consumes:
 
-- flow.criteria
-- flow.evaluationConfiguration
-- flow.suppliers
-- flow.validationResult
+- criteria
+- suppliers
+- evaluation configuration
+- validation result
 
-Produces
+Produces `flow.canonicalQuestionMap`.
 
-```text
-flow.canonicalQuestionMap
-```
-
-The canonical model is the single source of truth for downstream evaluation.
+This is the only evaluation representation consumed downstream.
 
 ---
 
-# Stage 6 — Evaluation
+# Stage 6 — Semantic Evaluation
 
-Consumes
+The Evaluation Specialist consumes the canonical model and confirmed rubric and produces `flow.scoringResult` containing question-level assessments, evidence, reasoning, strengths and weaknesses.
 
-```text
-flow.canonicalQuestionMap
-```
-
-Produces the controlled evaluation objects:
-
-```text
-flow.knockoutResult
-flow.scoringResult
-flow.weightedScores
-flow.rankingResult
-flow.evaluationResult
-```
+The specialist's numerical score recommendation is treated as a structured semantic output; arithmetic remains deterministic.
 
 ---
 
-# Stage 7 — Reporting
-
-Consumes
+# Stage 7 — Deterministic Processing
 
 ```text
-flow.evaluationResult
+Canonical Model
+    ↓
+Confirmed Knockout Rules
+    ↓
+Knockout Result
+    ↓
+Semantic Scores
+    ↓
+Deterministic Score Validation
+    ↓
+Weighted Scores
+    ↓
+Qualified Ranking
 ```
 
-Produces
-
-```text
-flow.report
-```
-
-No procurement logic exists within reporting.
+An ambiguous knockout routes to the human gate rather than being silently failed.
 
 ---
 
-# Stage 8 — Post-Evaluation Analysis
+# Stage 8 — Master Challenge and Synthesis
 
-Consumes
+The Master verifies:
 
-```text
-flow.evaluationResult
-flow.report
-```
+- evidence coverage
+- source consistency
+- score rationale consistency
+- knockout consistency
+- ranking consistency
 
-Supports conversational analysis without repeating extraction or scoring unless explicitly requested after an approved change.
+It can request targeted specialist re-analysis before final synthesis.
 
 ---
 
-# Data Dependency Graph
+# Stage 9 — Reporting
 
-```mermaid
-flowchart TD
+`flow.evaluationResult` is rendered into the standard four-tab workbook:
 
-fileIntake --> criteria
-fileIntake --> suppliers
-criteria --> evaluationConfiguration
-criteria --> validationResult
-suppliers --> validationResult
-criteria --> canonicalQuestionMap
-evaluationConfiguration --> canonicalQuestionMap
-suppliers --> canonicalQuestionMap
-validationResult --> canonicalQuestionMap
-canonicalQuestionMap --> knockoutResult
-knockoutResult --> scoringResult
-scoringResult --> weightedScores
-weightedScores --> rankingResult
-rankingResult --> evaluationResult
-evaluationResult --> report
-evaluationResult --> QA
-```
+1. Executive Summary
+2. Supplier Profiles
+3. Q&A Scorecard
+4. Score Legend
+
+The report generator cannot alter evaluation data.
+
+---
+
+# Stage 10 — Post-Evaluation
+
+Stored evaluation state supports:
+
+- supplier comparisons
+- score explanations
+- knockout explanations
+- report regeneration
+- approved re-weighting scenarios
+
+Scenario changes create a new configuration/result lineage and preserve the original run.
 
 ---
 
 # Immutability Rules
 
-The following are immutable after creation/acceptance:
+Immutable after acceptance:
 
-- flow.fileIntake
-- flow.criteria
-- flow.suppliers
-- flow.validationResult
-- flow.canonicalQuestionMap
-- flow.knockoutResult
-- flow.scoringResult
-- flow.weightedScores
-- flow.rankingResult
-- flow.evaluationResult
-- flow.report
+- `flow.fileIntake`
+- `flow.criteria`
+- `flow.suppliers`
+- `flow.validationResult`
+- `flow.canonicalQuestionMap`
+- `flow.knockoutResult`
+- `flow.scoringResult`
+- `flow.weightedScores`
+- `flow.rankingResult`
+- `flow.evaluationResult`
+- `flow.report`
 
-Only `flow.evaluationConfiguration` is intentionally configurable before evaluation or during an approved re-evaluation cycle.
+`flow.evaluationConfiguration` is editable only before approval/freeze or through a new scenario.
 
 ---
 
 # Provenance Rules
 
-Material extracted fields should retain enough provenance to identify:
+Material values retain, where available:
 
 - source file
-- source sheet where available
-- source row/column or source location where available
-- whether the value was explicit or inferred
-- confidence where inference was used
+- source sheet
+- source location
+- explicit/inferred indicator
+- confidence
 
-This is essential for explainable procurement evaluation.
+Supplier response text is never rewritten during extraction.
 
 ---
 
 # Data Contract Rules
 
 1. Every shared object has exactly one producer.
-2. Consumers treat shared objects as read-only.
-3. Source data is never overwritten by inferred values.
-4. Unknown values use `null` rather than fabricated content.
-5. Arrays exist even when empty.
-6. Material uncertainty is represented explicitly.
-7. All downstream evaluation operates on normalized contracts.
-
----
-
-# Summary
-
-Version 1.1 introduces `flow.fileIntake` as the controlled boundary between flexible user files and the strict procurement data model.
-
-This enables a low-friction user experience without weakening internal data discipline, provenance, explainability or deterministic evaluation.
+2. Consumers do not modify upstream objects.
+3. Unknown source values are `null` rather than fabricated.
+4. Arrays are always present.
+5. Material uncertainty is explicit.
+6. Human-confirmed rules are separate from source facts.
+7. Scenario lineage is preserved.
