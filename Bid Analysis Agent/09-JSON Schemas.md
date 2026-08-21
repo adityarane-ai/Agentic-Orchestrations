@@ -1,22 +1,14 @@
 # 09. JSON Schemas
 
-**Document Version:** 1.2
+**Document Version:** 1.3
 
-**Status:** Deep Agent + HITL Contract Baseline
+**Status:** Deep Agent + GEP Knowledge + HITL Contract Baseline
 
-**Parent Document:** Software Design Specification (SDS)
+## Purpose
 
----
+These contracts separate source facts, GEP knowledge context, human-confirmed evaluation configuration, semantic scoring and deterministic results.
 
-# Purpose
-
-This document defines the canonical JSON contracts exchanged between modules of the RFP Qualitative Bid Analysis Agent.
-
-The contracts explicitly separate source facts, agent interpretation, human-confirmed evaluation configuration, semantic scoring and deterministic results.
-
----
-
-# Schema Relationships
+## Schema Relationships
 
 ```mermaid
 flowchart TB
@@ -24,128 +16,89 @@ flowchart TB
     FI --> CRIT[Criteria]
     FI --> SUP[Suppliers]
 
-    CRIT --> CLAR[Bid Clarification Package]
+    K[GEP Knowledge Library] --> KC[Knowledge Context]
+    KC --> CLAR[Bid Clarification Package]
+    KC --> SCORE[Semantic Scoring Context]
+
+    CRIT --> CLAR
     SUP --> CLAR
     CLAR --> HUMAN[Human Confirmation]
     HUMAN --> CFG[Evaluation Configuration]
 
-    CRIT --> VAL[Validation Result]
+    CRIT --> VAL[Validation]
     SUP --> VAL
     CFG --> VAL
-
     VAL --> CAN[Canonical Question Map]
-    CRIT --> CAN
-    SUP --> CAN
     CFG --> CAN
-
-    CAN --> KO[Knockout Result]
+    CAN --> KO[Confirmed Knockout Result]
     CFG --> KO
-    CAN --> SCORE[Scoring Result]
+    CAN --> SCORE
     CFG --> SCORE
+    KC --> SCORE
 
     KO --> SCOREVAL[Deterministic Score Validation]
     SCORE --> SCOREVAL
     CFG --> SCOREVAL
-
     SCOREVAL --> WS[Weighted Scores]
-    KO --> RANK[Ranking Result]
-    WS --> RANK
-
-    KO -. ambiguous .-> HUMAN
-    VAL -. material error .-> HUMAN
+    WS --> RANK[Qualified Ranking]
+    KO --> RANK
 
     RANK --> ER[Evaluation Result]
     SCORE --> ER
     KO --> ER
     CFG --> ER
+    KC --> ER
     ER --> REPORT[Report]
     ER --> QA[Post-Evaluation State]
-    QA -->|New approved scenario| SCEN[Evaluation Scenario]
-    SCEN --> CFG2[New Evaluation Configuration]
+    QA --> SCEN[New Scenario]
+    SCEN --> CFG2[New Configuration]
     CFG2 --> VAL
+
+    KO -. ambiguous .-> HUMAN
 ```
 
-The diagram intentionally separates **candidate/source information**, **human-confirmed business rules**, **semantic scoring** and **deterministic results**.
+## GEP Knowledge Context Schema
 
----
+```json
+{
+  "knowledgeContextId": "",
+  "retrievalStatus": "COMPLETE",
+  "sources": [
+    {
+      "sourceId": "",
+      "sourceName": "",
+      "category": "",
+      "referenceType": "toolkit",
+      "relevance": 0.0,
+      "retrievalReason": "",
+      "sourceLocation": null,
+      "materialFinding": "",
+      "confidence": 0.0
+    }
+  ],
+  "usagePolicy": "CONTEXT_ONLY"
+}
+```
 
-# Schema 1 — File Intake
+Knowledge context may inform semantic reasoning but cannot silently create evaluation rules.
+
+## Schema 1 — File Intake
 
 ```json
 {
   "intakeId": "",
-  "files": [
-    {
-      "fileId": "",
-      "fileName": "",
-      "mimeType": "",
-      "fileRole": "unknown",
-      "classificationConfidence": 0.0,
-      "classificationReason": "",
-      "supplierName": null,
-      "provenance": {
-        "source": "uploaded_file",
-        "location": null
-      },
-      "sheets": [
-        {
-          "sheetName": "",
-          "sheetRole": "unknown",
-          "confidence": 0.0,
-          "reason": "",
-          "headers": [],
-          "rowCount": 0,
-          "columnCount": 0,
-          "provenance": {}
-        }
-      ]
-    }
-  ],
+  "files": [],
   "materialAmbiguities": [],
   "missingInformation": [],
   "discoveryStatus": "Complete"
 }
 ```
 
-Allowed file roles:
-
-```text
-evaluation_criteria
-supplier_submission
-combined_evaluation_and_supplier
-supporting_document
-unknown
-```
-
-Allowed sheet roles:
-
-```text
-evaluation_criteria
-supplier_response
-technical_response
-commercial_response
-company_profile
-references
-coverage
-instructions
-supporting_information
-irrelevant
-unknown
-```
-
----
-
-# Schema 2 — Criteria
+## Schema 2 — Criteria
 
 ```json
 {
-  "metadata": {
-    "eventName": null,
-    "version": null,
-    "questionCount": 0,
-    "sectionCount": 0,
-    "sourceFiles": []
-  },
+  "metadata": {},
   "sections": [
     {
       "sectionId": "",
@@ -160,15 +113,8 @@ unknown
           "scoringRubric": null,
           "knockoutCandidate": false,
           "candidateAcceptanceCondition": null,
-          "source": {
-            "fileId": null,
-            "sheetName": null,
-            "location": null
-          },
-          "inference": {
-            "isInferred": false,
-            "confidence": 1.0
-          }
+          "source": {},
+          "inference": {"isInferred": false, "confidence": 1.0}
         }
       ]
     }
@@ -176,21 +122,14 @@ unknown
 }
 ```
 
-Candidate knockout status is informational only. It is not authoritative until included in the confirmed Evaluation Configuration.
+Candidate knockout status is informational only.
 
----
-
-# Schema 3 — Supplier
+## Schema 3 — Supplier
 
 ```json
 {
   "supplierId": "",
   "supplierName": "",
-  "metadata": {
-    "questionCount": 0,
-    "sectionCount": 0,
-    "sourceFiles": []
-  },
   "sections": [
     {
       "sectionName": "",
@@ -201,11 +140,7 @@ Candidate knockout status is informational only. It is not authoritative until i
           "questionText": "",
           "answer": null,
           "answered": false,
-          "source": {
-            "fileId": null,
-            "sheetName": null,
-            "location": null
-          }
+          "source": {}
         }
       ]
     }
@@ -213,11 +148,9 @@ Candidate knockout status is informational only. It is not authoritative until i
 }
 ```
 
-Supplier answer text must remain source-faithful.
+Supplier answer text remains source-faithful.
 
----
-
-# Schema 4 — Bid Clarification Package
+## Schema 4 — Bid Clarification Package
 
 ```json
 {
@@ -232,17 +165,8 @@ Supplier answer text must remain source-faithful.
     "scoringRubric": null,
     "weights": []
   },
-  "knockoutCandidates": [
-    {
-      "questionId": "",
-      "questionNumber": null,
-      "requirement": "",
-      "source": {},
-      "agentReason": "",
-      "confidence": 0.0,
-      "proposedAcceptanceCondition": null
-    }
-  ],
+  "knowledgeContext": {"knowledgeContextId": null, "materialSources": []},
+  "knockoutCandidates": [],
   "ambiguities": [],
   "missingInformation": [],
   "explicitFacts": [],
@@ -252,9 +176,7 @@ Supplier answer text must remain source-faithful.
 }
 ```
 
----
-
-# Schema 5 — Evaluation Configuration
+## Schema 5 — Evaluation Configuration
 
 ```json
 {
@@ -264,30 +186,13 @@ Supplier answer text must remain source-faithful.
   "approvedBy": null,
   "approvedAt": null,
   "runId": "",
-  "scoring": {
-    "scaleMin": null,
-    "scaleMax": null,
-    "rubric": []
-  },
-  "weights": [
-    {
-      "questionId": "",
-      "weight": 0
-    }
-  ],
-  "knockoutRules": [
-    {
-      "ruleId": "",
-      "questionId": "",
-      "questionNumber": null,
-      "requirement": "",
-      "acceptanceCondition": "",
-      "mandatory": true
-    }
-  ],
+  "scoring": {"scaleMin": null, "scaleMax": null, "rubric": []},
+  "weights": [],
+  "knockoutRules": [],
   "excludedQuestions": [],
   "includedSections": [],
   "specialInstructions": [],
+  "knowledgePolicy": "CONTEXT_ONLY",
   "sourceAssumptions": [],
   "confirmationNotes": []
 }
@@ -295,26 +200,13 @@ Supplier answer text must remain source-faithful.
 
 If no knockouts are confirmed, `knockoutRules` shall be an empty array.
 
----
-
-# Schema 6 — Validation Result
+## Schema 6 — Validation Result
 
 ```json
-{
-  "valid": true,
-  "errors": [],
-  "warnings": [],
-  "missingQuestions": [],
-  "extraQuestions": [],
-  "mappingIssues": [],
-  "configurationIssues": [],
-  "sourceIssues": []
-}
+{"valid": true, "errors": [], "warnings": [], "missingQuestions": [], "extraQuestions": [], "mappingIssues": [], "configurationIssues": [], "sourceIssues": []}
 ```
 
----
-
-# Schema 7 — Canonical Question Map
+## Schema 7 — Canonical Question Map
 
 ```json
 {
@@ -329,25 +221,14 @@ If no knockouts are confirmed, `knockoutRules` shall be an empty array.
       "supplierAnswer": null,
       "answered": false,
       "mappingConfidence": 1.0,
-      "criteria": {
-        "weight": null,
-        "guidance": null,
-        "scoringRubric": null,
-        "knockoutConfirmed": false,
-        "acceptanceCondition": null
-      },
-      "source": {
-        "criteriaSource": {},
-        "supplierSource": {}
-      }
+      "criteria": {"weight": null, "guidance": null, "scoringRubric": null, "knockoutConfirmed": false, "acceptanceCondition": null},
+      "source": {"criteriaSource": {}, "supplierSource": {}}
     }
   ]
 }
 ```
 
----
-
-# Schema 8 — Knockout Result
+## Schema 8 — Knockout Result
 
 ```json
 {
@@ -359,35 +240,15 @@ If no knockouts are confirmed, `knockoutRules` shall be an empty array.
       "status": "PASS",
       "failedRules": [],
       "ambiguousRules": [],
-      "decisions": [
-        {
-          "ruleId": "",
-          "questionId": "",
-          "acceptanceCondition": "",
-          "actualAnswer": null,
-          "evidence": "",
-          "status": "PASS",
-          "reason": "",
-          "source": {}
-        }
-      ]
+      "decisions": []
     }
   ]
 }
 ```
 
-Allowed status values:
+Allowed statuses: `PASS`, `FAIL`, `AMBIGUOUS`, `NOT_APPLICABLE`.
 
-```text
-PASS
-FAIL
-AMBIGUOUS
-NOT_APPLICABLE
-```
-
----
-
-# Schema 9 — Scoring Result
+## Schema 9 — Scoring Result
 
 ```json
 {
@@ -403,6 +264,7 @@ NOT_APPLICABLE
           "maxScore": null,
           "reasoning": "",
           "evidence": "",
+          "knowledgeReferences": [],
           "strengths": [],
           "weaknesses": [],
           "confidence": 0.0,
@@ -416,9 +278,7 @@ NOT_APPLICABLE
 
 The score recommendation is semantic output. It becomes numerically authoritative only after deterministic validation/calculation against the approved configuration.
 
----
-
-# Schema 10 — Weighted Scores
+## Schema 10 — Weighted Scores
 
 ```json
 {
@@ -426,13 +286,7 @@ The score recommendation is semantic output. It becomes numerically authoritativ
     {
       "supplierId": "",
       "supplierName": "",
-      "sectionScores": [
-        {
-          "sectionName": "",
-          "weightedScore": 0,
-          "weight": 0
-        }
-      ],
+      "sectionScores": [],
       "overallWeightedScore": 0,
       "calculationStatus": "VALID"
     }
@@ -440,158 +294,95 @@ The score recommendation is semantic output. It becomes numerically authoritativ
 }
 ```
 
----
-
-# Schema 11 — Ranking Result
+## Schema 11 — Ranking Result
 
 ```json
-{
-  "rankings": [
-    {
-      "rank": 1,
-      "supplierId": "",
-      "supplierName": "",
-      "score": 0,
-      "status": "Qualified"
-    }
-  ],
-  "disqualifiedSuppliers": [],
-  "tieHandling": ""
-}
+{"rankings": [], "disqualifiedSuppliers": [], "tieHandling": ""}
 ```
 
 Disqualified suppliers do not receive a qualified rank.
 
----
-
-# Schema 12 — Evaluation Result
+## Schema 12 — Evaluation Result
 
 ```json
 {
   "runId": "",
   "scenarioId": "",
   "configurationId": "",
-  "summary": {
-    "supplierCount": 0,
-    "qualifiedSuppliers": 0,
-    "disqualifiedSuppliers": 0,
-    "evaluationDate": "",
-    "sourceFiles": []
-  },
-  "suppliers": [
-    {
-      "supplierId": "",
-      "supplierName": "",
-      "rank": null,
-      "qualificationStatus": "Qualified",
-      "overallScore": null,
-      "strengths": [],
-      "weaknesses": [],
-      "risks": [],
-      "negotiationOpportunities": [],
-      "recommendation": "",
-      "knockoutSummary": []
-    }
-  ],
-  "audit": {
-    "configurationVersion": 1,
-    "sourceReferences": [],
-    "assumptions": []
-  }
+  "summary": {},
+  "suppliers": [],
+  "knowledgeReferences": [],
+  "audit": {"configurationVersion": 1, "sourceReferences": [], "assumptions": []}
 }
 ```
 
----
-
-# Schema 13 — Evaluation Scenario
+## Schema 13 — Evaluation Scenario
 
 ```json
-{
-  "scenarioId": "",
-  "parentScenarioId": null,
-  "runId": "",
-  "changeType": "WEIGHT_CHANGE",
-  "changes": [],
-  "createdAt": "",
-  "status": "READY"
-}
+{"scenarioId": "", "parentScenarioId": null, "runId": "", "changeType": "WEIGHT_CHANGE", "changes": [], "createdAt": "", "status": "READY"}
 ```
 
----
-
-# Schema 14 — Report
+## Schema 14 — Report
 
 ```json
 {
   "generatedAt": "",
   "generatedBy": "",
-  "reportVersion": "1.2",
+  "reportVersion": "1.3",
   "reportType": "Excel",
   "sourceRunId": "",
   "sourceScenarioId": "",
-  "tabs": [
-    "Executive Summary",
-    "Supplier Profiles",
-    "Q&A Scorecard",
-    "Score Legend"
-  ],
+  "tabs": ["Executive Summary", "Supplier Profiles", "Q&A Scorecard", "Score Legend"],
   "downloadReference": "",
   "status": "Generated"
 }
 ```
 
----
-
-# Report Data Contract
+## Report Data Contract
 
 ### Executive Summary
-Consumes supplier ranking/status, section scores, key findings, recommendation and knockout status.
+Consumes ranking/status, section scores, critical findings, recommendation and knockout status.
 
 ### Supplier Profiles
-Consumes supplier-level score/status, strengths, weaknesses, risks, section scores and recommendation.
+Consumes supplier-level results, strengths, weaknesses, risks, section scores and recommendation.
 
 ### Q&A Scorecard
-Consumes canonical question map + scoring result and preserves the original supplier response, score and evaluator comment/rationale.
+Consumes canonical question map + scoring result and preserves original supplier response, score and evaluator comment/rationale.
 
 ### Score Legend
-Consumes the confirmed scoring scale/rubric and configuration metadata actually used in the run.
+Consumes the confirmed scoring scale/rubric and methodology actually used in the run.
 
-The report generator must not invent methodology text.
-
----
-
-# Schema Validation Rules
+## Schema Validation Rules
 
 1. Required fields must exist.
 2. Unknown source values use `null`.
-3. Empty strings are used only where a source field exists but is blank.
-4. Arrays always exist.
-5. Booleans are actual booleans.
-6. Numeric fields are numeric.
-7. Confidence represents interpretation certainty, not evaluation quality.
-8. Material provenance is retained.
-9. Confirmed configuration must have `approved=true` before evaluation.
-10. A knockout rule must have an acceptance condition unless the business process explicitly defines another decision method.
-11. No deterministic ranking may be produced when material validation errors remain.
-12. Scenario changes must retain parent scenario lineage.
+3. Arrays always exist.
+4. Numeric fields are numeric.
+5. Confidence represents interpretation certainty, not evaluation quality.
+6. Material provenance is retained.
+7. Knowledge references are separate from supplier evidence.
+8. Confirmed configuration must have `approved=true` before evaluation.
+9. A knockout rule requires an acceptance condition unless another approved decision method exists.
+10. No deterministic ranking may be produced while material validation errors remain.
+11. Scenario changes retain parent lineage.
+12. GEP knowledge cannot silently change the evaluation configuration.
 
----
-
-# Ownership
+## Ownership
 
 | Schema | Owner |
 |---|---|
 | File Intake | Discovery |
 | Criteria | Criteria Specialist |
 | Supplier | Supplier Specialist |
+| Knowledge Context | Knowledge tools / Master |
 | Bid Clarification Package | Master |
 | Evaluation Configuration | Human confirmation workflow / Master |
 | Validation Result | Validation Script |
 | Canonical Question Map | Canonical Mapping Script |
 | Knockout Result | Knockout Script |
 | Scoring Result | Evaluation Specialist |
-| Weighted Scores | Weighted Calculation Script |
+| Weighted Scores | Weighted Calculation |
 | Ranking Result | Ranking Script |
 | Evaluation Result | Result Builder |
-| Evaluation Scenario | Master / Scenario workflow |
+| Scenario | Master / Scenario workflow |
 | Report | Report Generator |
