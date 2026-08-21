@@ -49,43 +49,41 @@ Users are not required to know internal filenames, sheet names, column names or 
 # Core Architecture
 
 ```mermaid
-flowchart TD
+flowchart TB
+    U([USER<br/>RFP + Supplier Files]) --> M[MASTER DEEP AGENT]
 
-U[USER<br/>RFP + Supplier Files]
-M[MASTER DEEP AGENT<br/>RFP QUALITATIVE BID ANALYSIS]
-C[Criteria Specialist]
-S[Supplier Evidence Specialist]
-E[Qualitative Evaluation Specialist]
-B[Bid Understanding / Clarification Package]
-H[Human Confirmation + Knockout Configuration]
-CFG[Frozen Evaluation Configuration]
-D[Deterministic Processing]
-Q[Master Challenge + Synthesis]
-R[Four-Tab Excel Report]
-QA[Post-Evaluation Q&A / Scenarios]
+    subgraph AGENT[Adaptive Agentic Orchestration]
+        M --> P{Plan / determine required work}
+        P --> C[Criteria Specialist]
+        P --> S[Supplier Evidence Specialist]
+        P --> E[Evaluation Specialist]
+        C --> B[Bid Understanding]
+        S --> B
+        B --> H[Human Confirmation + Knockout Configuration]
+        H --> CFG[Frozen Evaluation Configuration]
+        CFG --> E
+        E --> QC[Master Challenge / QC]
+        QC -->|Re-analysis| E
+    end
 
-U --> M
-M --> C
-M --> S
-C --> B
-S --> B
-B --> M
-M --> H
-H --> CFG
-CFG --> D
-C --> E
-S --> E
-CFG --> E
-E --> Q
-D --> Q
-Q --> R
-R --> M
-M --> QA
-QA --> M
+    CFG --> D[DETERMINISTIC PROCESSING]
+    D --> K[Confirmed Knockout Rules]
+    K --> SCORE[Score / Weight Calculation]
+    SCORE --> RANK[Qualified Ranking]
+    RANK --> SYN[Master Final Synthesis]
+    QC --> SYN
+    SYN --> REPORT[Four-Tab Excel Report]
+    REPORT --> OUT([OUTPUT])
 
-M -. targeted re-analysis .-> C
-M -. targeted re-analysis .-> S
-M -. targeted re-analysis .-> E
+    RANK --> QA[Post-Evaluation Q&A / Scenarios]
+    QA -->|Explain stored results| SYN
+    QA -->|Approved rule / weight change| CFG2[New Scenario Configuration]
+    CFG2 --> D
+
+    M -. targeted re-analysis .-> C
+    M -. targeted re-analysis .-> S
+    M -. dynamic parallelism .-> C
+    M -. dynamic parallelism .-> S
 ```
 
 ---
