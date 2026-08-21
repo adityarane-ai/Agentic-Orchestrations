@@ -1,8 +1,8 @@
 # 08. Flow Variables
 
-**Document Version:** 1.1
+**Document Version:** 1.2
 
-**Status:** Architecture Baseline Updated
+**Status:** Deep Agent + HITL Data Contract Baseline
 
 **Parent Document:** Software Design Specification (SDS)
 
@@ -10,303 +10,237 @@
 
 # Purpose
 
-This document defines every Flow Variable used by the RFP Qualitative Evaluation Agent.
+This document defines the shared Flow Variables for the RFP Qualitative Bid Analysis Agent.
 
-Version 1.1 introduces `flow.fileIntake` to support flexible user-provided Excel files while preserving strict downstream contracts.
-
-Flow Variables are the shared communication mechanism between modules.
+The architecture uses Flow Variables to separate source discovery, human-confirmed configuration, deterministic evaluation and reporting.
 
 ---
 
-# Design Principles
-
-1. Single Producer
-2. Multiple Consumers
-3. Immutable Source Data
-4. Explicit Contracts
-5. Stable Interfaces
-6. Provenance Preservation
-7. Explicit Uncertainty
-
-No undocumented Flow Variables shall be introduced during implementation.
-
----
-
-# Flow Variable Lifecycle
+# Core Lifecycle
 
 ```mermaid
 flowchart LR
 
-UserFiles --> flow.fileIntake
-flow.fileIntake --> flow.criteria
-flow.fileIntake --> flow.suppliers
-flow.criteria --> flow.evaluationConfiguration
-flow.criteria --> flow.validationResult
-flow.suppliers --> flow.validationResult
-flow.criteria --> flow.canonicalQuestionMap
-flow.evaluationConfiguration --> flow.canonicalQuestionMap
-flow.suppliers --> flow.canonicalQuestionMap
-flow.validationResult --> flow.canonicalQuestionMap
-flow.canonicalQuestionMap --> flow.knockoutResult
-flow.knockoutResult --> flow.scoringResult
-flow.scoringResult --> flow.weightedScores
-flow.weightedScores --> flow.rankingResult
-flow.rankingResult --> flow.evaluationResult
-flow.evaluationResult --> flow.report
-flow.evaluationResult --> Supervisor
+FILES --> fileIntake
+fileIntake --> criteria
+fileIntake --> suppliers
+criteria --> clarificationPackage
+suppliers --> clarificationPackage
+clarificationPackage --> evaluationConfiguration
+evaluationConfiguration --> validationResult
+criteria --> validationResult
+suppliers --> validationResult
+validationResult --> canonicalQuestionMap
+criteria --> canonicalQuestionMap
+suppliers --> canonicalQuestionMap
+evaluationConfiguration --> canonicalQuestionMap
+canonicalQuestionMap --> knockoutResult
+canonicalQuestionMap --> scoringResult
+evaluationConfiguration --> knockoutResult
+knockoutResult --> scoringResult
+scoringResult --> weightedScores
+evaluationConfiguration --> weightedScores
+weightedScores --> rankingResult
+knockoutResult --> rankingResult
+rankingResult --> evaluationResult
+evaluationResult --> report
+evaluationResult --> conversationState
 ```
 
 ---
 
 # Flow Variable Inventory
 
-| Variable | Producer | Consumers |
+| Variable | Producer | Main consumers |
 |---|---|---|
-| flow.conversationState | Supervisor | Supervisor |
-| flow.fileIntake | File Intake & Discovery | Supervisor, Criteria Processing, Supplier Processing |
-| flow.criteria | Criteria Processing | Evaluation Configuration, Validation, Canonical Mapping |
-| flow.evaluationConfiguration | Evaluation Configuration | Evaluation Engine |
-| flow.suppliers | Supplier Processing | Validation, Canonical Mapping, Evaluation Engine |
-| flow.validationResult | Validation | Canonical Mapping, Supervisor |
-| flow.canonicalQuestionMap | Canonical Mapping | Knockout Evaluation, Qualitative Scoring |
-| flow.knockoutResult | Knockout Evaluation | Qualitative Scoring, Ranking |
-| flow.scoringResult | Qualitative Scoring | Weighted Score Calculation |
-| flow.weightedScores | Weighted Score Calculation | Supplier Ranking |
-| flow.rankingResult | Supplier Ranking | Evaluation Result Builder |
-| flow.evaluationResult | Evaluation Engine / Result Builder | Report Generator, Supervisor, Q&A |
-| flow.report | Report Generator | Supervisor, Q&A |
+| flow.conversationState | Master | Master |
+| flow.fileIntake | Discovery | Master, Criteria, Supplier |
+| flow.criteria | Criteria Specialist | Master, Validation, Canonical Mapping |
+| flow.suppliers | Supplier Specialist | Master, Validation, Canonical Mapping |
+| flow.clarificationPackage | Master | Human confirmation workflow |
+| flow.evaluationConfiguration | Human confirmation workflow | Validation, Canonical Mapping, Knockout, Scoring, Weighting |
+| flow.validationResult | Validation | Master, Canonical Mapping |
+| flow.canonicalQuestionMap | Canonical Mapping | Knockout, Scoring |
+| flow.knockoutResult | Knockout Script | Scoring, Ranking, Result Builder |
+| flow.scoringResult | Evaluation Specialist | Score Calculation |
+| flow.weightedScores | Weighted Calculation | Ranking, Result Builder |
+| flow.rankingResult | Ranking Script | Result Builder |
+| flow.evaluationResult | Result Builder | Master, Report, Q&A |
+| flow.report | Report Generator | Master, Q&A |
+| flow.evaluationScenario | Scenario Manager / Master | Master, Result Builder, Q&A |
 
 ---
 
-# Variable Specifications
+# flow.conversationState
 
-## flow.conversationState
-
-Purpose:
-
-Tracks the current orchestration state.
-
-Producer:
-
-Supervisor
+Purpose: current workflow state.
 
 Example:
 
 ```json
 {
-  "state": "ASSESSING_INPUT"
+  "state": "HUMAN_CONFIRMATION",
+  "runId": "RUN-001",
+  "scenarioId": "SCN-001"
 }
 ```
 
-Supported states:
+Key states:
 
 ```text
 INITIAL
 WAITING_FOR_FILES
-DISCOVERING_FILES
-ASSESSING_INPUT
-CLARIFICATION_REQUIRED
-PROCESSING_CRITERIA
-CONFIGURING_EVALUATION
-WAITING_FOR_SUPPLIERS
-PROCESSING_SUPPLIERS
-RUNNING_EVALUATION
+DISCOVERING
+PLANNING
+DISCOVERY_SPECIALISTS
+BUILDING_UNDERSTANDING
+CLARIFICATION_PACKAGE
+HUMAN_CONFIRMATION
+KNOCKOUT_CONFIGURATION
+CONFIGURATION_VALIDATION
+EVALUATION_READY
+EVALUATING
+MASTER_QC
+TARGETED_REANALYSIS
+DETERMINISTIC_PROCESSING
+HUMAN_EXCEPTION
+SYNTHESIS
 GENERATING_REPORT
 COMPLETED
 POST_EVALUATION
-FILE_DISCOVERY_ERROR
-CRITERIA_ERROR
-SUPPLIER_ERROR
-EVALUATION_ERROR
+SCENARIO_REEVALUATION
+ERROR
 ```
 
 ---
 
-## flow.fileIntake
+# flow.fileIntake
 
-Purpose:
+Purpose: structured understanding of uploaded files/sheets.
 
-Represents the system's structured understanding of uploaded files and workbook structures before business processing.
+Required concepts:
 
-Producer:
-
-File Intake & Discovery
-
-Consumers:
-
-- Supervisor
-- Criteria Processing
-- Supplier Processing
-
-Lifecycle:
-
-Created after file discovery and treated as immutable for the current intake set.
-
-Required information:
-
-- session/intake identifier
+- intakeId
 - files[]
-- classification status
-- material ambiguities
-- completeness assessment inputs
-
-Each file may contain:
-
-- fileId
-- fileName
-- mimeType
 - fileRole
 - classificationConfidence
 - classificationReason
 - supplierName
 - sheets[]
+- materialAmbiguities[]
+- missingInformation[]
 - provenance
 
-Each sheet may contain:
+Unknown values are `null`, not fabricated.
 
-- sheetName
-- sheetRole
-- confidence
-- reason
-- detected headers
-- source dimensions where available
-- provenance
-
-Possible file roles:
-
-```text
-evaluation_criteria
-supplier_submission
-combined_evaluation_and_supplier
-supporting_document
-unknown
-```
-
-Possible sheet roles:
-
-```text
-evaluation_criteria
-supplier_response
-technical_response
-commercial_response
-company_profile
-references
-coverage
-instructions
-supporting_information
-irrelevant
-unknown
-```
-
-Unknown values shall be represented as `null` rather than fabricated.
+Immutable after acceptance for the intake set.
 
 ---
 
-## flow.criteria
+# flow.criteria
 
-Purpose:
+Purpose: normalized source evaluation framework.
 
-Represents normalized evaluation criteria extracted from discovered source material.
-
-Producer:
-
-Criteria Processing
-
-Consumers:
-
-- Evaluation Configuration
-- Validation
-- Canonical Mapping
-
-Lifecycle:
-
-Created once for an evaluation configuration cycle and immutable thereafter.
-
-Contents:
+Contains:
 
 - metadata
 - sections
 - questions
 - stable question IDs
-- source numbering where available
+- source numbering
 - weights
+- scoring rubric
 - guidance
-- rubrics
 - knockout candidates
 - provenance
 - inference indicators
 
----
-
-## flow.evaluationConfiguration
-
-Purpose:
-
-Represents business-approved evaluation rules.
-
-Producer:
-
-Evaluation Configuration
-
-Consumer:
-
-Evaluation Engine
-
-Contents:
-
-- approved
-- weights
-- knockout rules
-- excluded questions
-- included sections
-- acceptance conditions
-- configuredBy
-- configuredAt
-
-This is the principal mutable business configuration object.
+Immutable source object.
 
 ---
 
-## flow.suppliers
+# flow.suppliers
 
-Purpose:
+Purpose: normalized supplier response/evidence objects.
 
-Contains normalized supplier response objects.
+Contains:
 
-Producer:
+- supplierId
+- supplierName
+- sourceFiles
+- sections
+- question mappings
+- original answer text
+- answered flag
+- evidence/provenance
+- mapping confidence
 
-Supplier Processing
-
-Consumers:
-
-- Validation
-- Canonical Mapping
-- Evaluation Engine
-
-Lifecycle:
-
-Immutable after extraction for the current source set.
-
-One logical object per supplier.
+Supplier response text is immutable after extraction.
 
 ---
 
-## flow.validationResult
+# flow.clarificationPackage
 
-Purpose:
+Purpose: human-readable and structured statement of the agent's current understanding before evaluation.
 
-Stores structural validation findings.
+Contains:
 
-Producer:
+- identified files and roles
+- supplier identities
+- evaluation sections/questions
+- scoring scale/rubric detected
+- weights detected
+- candidate knockouts
+- proposed acceptance conditions
+- ambiguities
+- missing information
+- explicit/inferred indicators
+- confirmation items
 
-Validate Questionnaire Structure
+This object is generated by the Master and presented to the human evaluator.
 
-Consumers:
+---
 
-- Canonical Mapping
-- Supervisor
+# flow.evaluationConfiguration
 
-Contents:
+Purpose: authoritative human-confirmed evaluation rules.
+
+Example structure:
+
+```json
+{
+  "configurationId": "CFG-001",
+  "version": 1,
+  "approved": true,
+  "approvedBy": "human",
+  "approvedAt": "",
+  "scoring": {
+    "scaleMin": 0,
+    "scaleMax": 5,
+    "rubric": []
+  },
+  "weights": [],
+  "knockoutRules": [],
+  "excludedQuestions": [],
+  "includedSections": [],
+  "specialInstructions": [],
+  "sourceAssumptions": []
+}
+```
+
+The object is frozen after approval for that run.
+
+If no knockouts are approved:
+
+```json
+"knockoutRules": []
+```
+
+---
+
+# flow.validationResult
+
+Contains:
 
 - valid
 - errors[]
@@ -314,240 +248,181 @@ Contents:
 - missingQuestions[]
 - extraQuestions[]
 - mappingIssues[]
+- configurationIssues[]
 - sourceIssues[]
+
+A material error prevents deterministic evaluation.
 
 ---
 
-## flow.canonicalQuestionMap
+# flow.canonicalQuestionMap
 
-Purpose:
+Purpose: single normalized representation used downstream.
 
-Provides the single canonical representation of every evaluation question/requirement used downstream.
+Each record contains:
 
-Producer:
-
-Canonical Mapping
-
-Consumers:
-
-- Knockout Evaluation
-- Qualitative Scoring
-
-Contains:
-
-- stable question ID
-- source question number
+- questionId
+- questionNumber
 - section
-- question text
-- supplier name
-- supplier answer
+- questionText
+- supplierId
+- supplierName
+- supplierAnswer
 - answered
-- criteria
-- weight
-- scoring guidance
-- knockout rules
-- provenance
+- confirmed weight
+- scoring rubric
+- confirmed knockout status
+- acceptance condition
+- criteria source
+- supplier source
 - mapping confidence
 
 ---
 
-## flow.knockoutResult
+# flow.knockoutResult
 
-Purpose:
+Contains supplier-level and question-level outcomes.
 
-Stores knockout evaluation results.
+Possible statuses:
 
-Producer:
+```text
+PASS
+FAIL
+AMBIGUOUS
+NOT_APPLICABLE
+```
 
-Knockout Evaluation
+Every material outcome includes:
 
-Consumers:
-
-- Qualitative Scoring
-- Supplier Ranking
-
-Contains:
-
-- supplierName
-- passed
-- status
-- failedQuestions[]
-- expected conditions
+- supplier
+- question/rule ID
+- acceptance condition
 - actual evidence
+- decision
 - reason
-- confidence where applicable
+- source reference
 
 ---
 
-## flow.scoringResult
+# flow.scoringResult
 
-Purpose:
+Contains semantic qualitative assessment.
 
-Stores qualitative evaluation scores and evidence.
+Each question-level score contains:
 
-Producer:
-
-Qualitative Scoring
-
-Consumer:
-
-Weighted Score Calculation
-
-Contains:
-
-- supplierName
-- questionScores[]
-- score
-- maxScore
+- supplier
+- question ID
+- score recommendation
+- max score
 - reasoning
 - evidence
 - strengths
 - weaknesses
-- scoring confidence
+- confidence
+
+This is not the authoritative arithmetic result.
 
 ---
 
-## flow.weightedScores
+# flow.weightedScores
 
-Purpose:
+Contains deterministic results:
 
-Stores deterministic weighted numerical results.
-
-Producer:
-
-Weighted Score Calculation
-
-Consumer:
-
-Supplier Ranking
-
-Contains:
-
-- supplierName
-- sectionScores[]
-- overallWeightedScore
-- calculation metadata
+- supplier
+- section scores
+- overall weighted score
+- calculation inputs
+- formula metadata
+- validation status
 
 ---
 
-## flow.rankingResult
-
-Purpose:
-
-Stores deterministic supplier ranking.
-
-Producer:
-
-Supplier Ranking
-
-Consumer:
-
-Evaluation Result Builder
+# flow.rankingResult
 
 Contains:
 
-- rank
-- supplierName
+- qualified ranks
+- supplier ID/name
 - score
-- status
+- qualification status
 - tie handling
-- ordering rationale
+- deterministic ordering information
 
 Disqualified suppliers do not receive a qualified rank.
 
 ---
 
-## flow.evaluationResult
+# flow.evaluationResult
 
-Purpose:
+Contains the complete run:
 
-Represents the complete procurement evaluation.
-
-Producer:
-
-Evaluation Result Builder / Evaluation Engine
-
-Consumers:
-
-- Supervisor
-- Report Generator
-- Post-Evaluation Q&A
-
-Contains:
-
-- summary
+- run/scenario metadata
+- confirmed configuration reference
 - supplier summaries
-- rankings
-- scores
+- qualification status
 - knockout results
-- recommendations
+- scores
+- rankings
 - strengths
 - weaknesses
 - risks
 - negotiation opportunities
+- recommendations
 - provenance/audit metadata
 
 ---
 
-## flow.report
-
-Purpose:
-
-Represents generated deliverables.
-
-Producer:
-
-Report Generator
-
-Consumers:
-
-- Supervisor
-- Q&A
+# flow.report
 
 Contains:
 
+- reportVersion
 - generatedAt
 - generatedBy
-- reportVersion
 - reportType
+- tabs
 - downloadReference
 - status
+- sourceRunId
 
----
-
-# Variable Ownership Rules
-
-1. Every variable has exactly one producer.
-2. Producers modify only their own variables.
-3. Consumers treat variables as read-only.
-4. Source variables remain immutable.
-5. Unknown information is never silently fabricated.
-6. Material inference retains confidence and provenance.
-
----
-
-# Naming Convention
+Required tabs:
 
 ```text
-flow.<businessObject>
+Executive Summary
+Supplier Profiles
+Q&A Scorecard
+Score Legend
 ```
-
-Examples:
-
-```text
-flow.fileIntake
-flow.criteria
-flow.suppliers
-flow.evaluationResult
-flow.report
-```
-
-Temporary script variables shall not become Flow Variables unless consumed by another module.
 
 ---
 
-# Summary
+# flow.evaluationScenario
 
-`flow.fileIntake` is the new abstraction boundary between user-provided files and the strict internal procurement model.
+Purpose: preserve scenario lineage for approved post-evaluation changes.
 
-All downstream Flow Variables retain the original single-producer, immutable-source and explicit-contract principles.
+Example:
+
+```json
+{
+  "scenarioId": "SCN-002",
+  "parentScenarioId": "SCN-001",
+  "changeType": "WEIGHT_CHANGE",
+  "changes": [],
+  "createdAt": "",
+  "status": "READY"
+}
+```
+
+The original scenario is never overwritten.
+
+---
+
+# Ownership Rules
+
+1. Every Flow Variable has exactly one producer.
+2. Consumers treat shared objects as read-only.
+3. Source data is immutable.
+4. Confirmed configuration is immutable after freeze.
+5. Scenario changes create new lineage.
+6. Unknown information is represented explicitly.
+7. Material inference retains provenance/confidence.
