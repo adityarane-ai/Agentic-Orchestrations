@@ -1,186 +1,115 @@
 # 07. QI Studio Orchestration Blueprint
 
-**Document Version:** 1.2
+**Document Version:** 1.3
 
-**Status:** Implementation Baseline — Deep Agent Architecture
+**Status:** Implementation Baseline — Deep Agent + GEP Knowledge + HITL + Deterministic Evaluation
 
-**Parent Document:** Software Design Specification (SDS)
+## Purpose
 
----
+The canvas remains compact. The primary orchestration intelligence lives inside one Master Deep Agent. The Master has three direct specialist sub-agents and uses Knowledge Library tools for GEP internal domain knowledge. Deterministic processing handles validation, confirmed knockout rules, calculations and ranking.
 
-# Purpose
-
-This document defines the implementable QI Studio architecture for the RFP Qualitative Bid Analysis Agent.
-
-The canvas should remain compact: the primary orchestration intelligence lives inside one Master Deep Agent. The Master has three direct specialist sub-agents available and dynamically delegates work. Deterministic processing is used for validation, confirmed knockout rules, calculations and ranking.
-
----
-
-# Canvas-Level Architecture
+## Canvas-Level Architecture
 
 ```mermaid
 flowchart LR
     START((START)) --> MASTER[MASTER DEEP AGENT<br/>RFP QUALITATIVE BID ANALYSIS]
-    MASTER --> DET[DETERMINISTIC PROCESSING<br/>Script / approved deterministic capabilities]
+    MASTER --> DET[DETERMINISTIC PROCESSING<br/>Validation • Rules • Calculation • Ranking]
     DET --> MASTER
     MASTER --> EXPORT[REPORT EXPORT<br/>Four-tab Excel]
     EXPORT --> OUTPUT((OUTPUT))
 
-    MASTER -. internal dynamic delegation .-> C[Criteria Specialist]
-    MASTER -. internal dynamic delegation .-> S[Supplier Evidence Specialist]
-    MASTER -. internal dynamic delegation .-> E[Evaluation Specialist]
-    MASTER -. human gate .-> H[Human Confirmation]
-    H -. confirmed configuration .-> MASTER
+    MASTER -. internal .-> C[Criteria Specialist]
+    MASTER -. internal .-> S[Supplier Evidence Specialist]
+    MASTER -. internal .-> E[Evaluation Specialist]
+    MASTER -. HITL .-> H[Human Confirmation]
+    H -. confirmed config .-> MASTER
+
+    MASTER -. Knowledge Library .-> KL[GEP Category Toolkits<br/>Internal Knowledge]
 ```
 
-The Deep Agent contains the specialist delegation and HITL interaction internally. The canvas does not need a separate node for every logical stage.
+## Deep Agent Responsibilities
 
----
+The Master shall:
 
-# Deep Agent Responsibilities
-
-The Master Deep Agent shall:
-
-- understand user intent
-- plan work
-- inspect available tools/capabilities when necessary
-- delegate to the appropriate specialist(s)
-- use parallel execution for independent work where available
-- respect task dependencies
-- synthesize discovery results
+- understand intent
+- plan and decompose tasks
+- dynamically delegate to specialists
+- exploit parallelism for independent tasks
+- respect dependencies
+- use file/document capabilities
+- use Knowledge Library tools when relevant
 - generate the Bid Clarification Package
 - obtain human confirmation
-- continue only after configuration approval
 - challenge specialist outputs
 - request targeted re-analysis
-- produce final procurement synthesis
+- synthesize the final procurement result
 
-The Master shall not silently change a confirmed evaluation configuration.
+Tool discovery is conditional. It is not a mandatory first step.
 
----
+## Specialist 1 — RFP & Evaluation Criteria Analyst
 
-# Specialist 1 — RFP & Evaluation Criteria Analyst
+Determines what the RFP/evaluation framework requires. It may use relevant GEP knowledge for terminology and contextual guidance.
 
-### Mission
-Determine what the RFP/evaluation framework requires.
+It must not convert knowledge-only recommendations into authoritative evaluation rules without human confirmation.
 
-### Responsibilities
+## Specialist 2 — Supplier Response & Evidence Analyst
 
-- identify sections
-- identify questions/requirements
-- preserve numbering
-- extract weights
-- extract scoring rubric
-- identify mandatory language
-- identify candidate knockout requirements
-- propose acceptance-condition candidates
-- preserve provenance
-- distinguish explicit facts from inference
+Determines what each supplier actually submitted. It is source-first. GEP knowledge should generally not be used to rewrite, supplement or infer supplier evidence.
 
-### Must not
+## Specialist 3 — Qualitative Evaluation & Comparison Analyst
 
-- evaluate suppliers
-- score supplier responses
-- rank suppliers
-- invent mandatory rules
+Evaluates supplier responses against the confirmed framework and may retrieve relevant GEP category toolkits, benchmarks and approved guidance.
 
----
+It produces semantic score recommendations, evidence, rationale, strengths, weaknesses, risks and comparisons. It does not perform authoritative arithmetic, weighting, ranking or confirmed knockout execution.
 
-# Specialist 2 — Supplier Response & Evidence Analyst
+## GEP Knowledge Library
 
-### Mission
-Determine what each supplier actually submitted.
+GEP knowledge is a **capability/tool layer**, not a fourth sub-agent.
 
-### Responsibilities
+Expected knowledge may include:
 
-- identify supplier
-- identify response boundaries
-- extract response text verbatim
-- preserve section/question mapping
-- capture evidence/provenance
-- detect missing responses
-- detect duplicate supplier files
-- report mapping confidence
+- category toolkits
+- category playbooks
+- procurement methodologies
+- evaluation guidance
+- benchmarks
+- negotiation guidance
+- internal terminology/reference material
 
-### Must not
+### Knowledge rules
 
-- rewrite source responses
-- score responses
-- rank suppliers
-- create knockout rules
+1. Follow the platform's knowledge workflow instructions.
+2. Retrieve only relevant knowledge for the task.
+3. Preserve knowledge source references where material.
+4. Use knowledge as context, benchmark or guidance.
+5. Never silently override the RFP.
+6. Never silently create a knockout, weight or acceptance condition from knowledge alone.
+7. Human confirmation is required for material business-rule changes.
 
----
-
-# Specialist 3 — Qualitative Evaluation & Comparison Analyst
-
-### Mission
-Evaluate supplier responses against the **confirmed** evaluation framework.
-
-### Responsibilities
-
-- assess response quality
-- apply the approved rubric semantically
-- recommend criterion-level scores
-- provide evidence and rationale
-- identify strengths/weaknesses
-- identify risks/gaps
-- compare suppliers
-
-### Must not
-
-- change the confirmed rubric
-- change weights
-- execute knockout rules
-- perform authoritative arithmetic/ranking
-
----
-
-# Human-in-the-Loop Gate
-
-The Master shall produce a **Bid Clarification Package** before the first evaluation run.
-
-The package must communicate:
-
-- what files were identified
-- what each file appears to represent
-- suppliers identified
-- evaluation sections/questions
-- scoring scale/rubric detected
-- weights detected
-- candidate knockouts
-- proposed acceptance conditions
-- ambiguities
-- missing information
-- explicit vs inferred information
-
-The user can:
-
-- confirm
-- correct
-- add information
-- add/remove/modify knockout requirements
-- define/modify acceptance conditions
-- approve the configuration
-
-The Master must not start evaluation until material configuration is approved.
-
----
-
-# Evaluation Configuration Contract
-
-The confirmed configuration becomes:
+### Authority model
 
 ```text
-flow.evaluationConfiguration
+Human-Confirmed Evaluation Configuration
+                 ↑
+                 │ authoritative run rules
+RFP / Sourcing Documents
+                 ↑
+                 │ source evaluation requirements
+GEP Knowledge Library
+                 │ contextual guidance
+                 ↓
+Semantic AI Evaluation
 ```
 
-It is frozen for the run.
+## Human-in-the-Loop Gate
 
-A new configuration after evaluation creates a new scenario/version.
+The Master creates a Bid Clarification Package containing the discovered files, suppliers, evaluation framework, scoring/weights, candidate knockouts, proposed acceptance conditions, GEP context used, ambiguities and missing information.
 
----
+The user confirms/corrects the understanding and confirms/adds/removes/changes knockout requirements and acceptance conditions.
 
-# Deterministic Node Inventory
+The Master must not start the evaluation run until material configuration is approved.
+
+## Deterministic Node Inventory
 
 | ID | Node | Type | Responsibility |
 |---|---|---|---|
@@ -194,9 +123,7 @@ A new configuration after evaluation creates a new scenario/version.
 | D-008 | Evaluation Result Builder | Script | Assemble deterministic result contract |
 | D-009 | Report Export | Export capability | Render four-tab workbook |
 
----
-
-# Recommended Execution Pattern
+## Recommended Execution Pattern
 
 ```mermaid
 flowchart TD
@@ -208,6 +135,7 @@ flowchart TD
     DISC -->|Supplier Evidence| S[Supplier Specialist]
     C --> B[Bid Understanding]
     S --> B
+
     B --> H[Human Confirmation + Knockout Configuration]
     H --> CFG[Frozen Evaluation Configuration]
 
@@ -223,7 +151,6 @@ flowchart TD
     KO -->|Ambiguous| H
     KO -->|Fail| DQ[Disqualified]
     KO -->|Pass| D5[D-005 Score Validation / Calculation]
-
     D5 --> D6[D-006 Weighted Score]
     D6 --> D7[D-007 Qualified Ranking]
     DQ --> D8[D-008 Result Builder]
@@ -232,97 +159,50 @@ flowchart TD
     M2 --> D9[D-009 Report Export]
     D9 --> OUT([OUTPUT])
 
-    M -. dynamic parallel delegation .-> C
-    M -. dynamic parallel delegation .-> S
-    M -. targeted re-analysis .-> C
-    M -. targeted re-analysis .-> S
+    M -. GEP knowledge .-> KL[Knowledge Library Tools]
+    KL -. context .-> C
+    KL -. context .-> E
+    M -. dynamic delegation .-> C
+    M -. dynamic delegation .-> S
 ```
 
----
+## Dynamic Delegation Rules
 
-# Dynamic Delegation Rules
+| Request | Behaviour |
+|---|---|
+| Criteria-only | Criteria Specialist; use knowledge if relevant |
+| Supplier extraction | Supplier Specialist; source-first |
+| Full bid analysis | Criteria + Supplier → HITL → Evaluation |
+| Follow-up explanation | Stored evaluation state; avoid re-extraction |
+| Weight-change scenario | New configuration/version → deterministic recalculation |
+| Material ambiguity | Human confirmation gate |
 
-The Master should use the following logic:
+## Error Handling
 
-### Criteria-only request
-Use Criteria Specialist; do not invoke Supplier/Evaluation Specialist unless required.
+Agent failure: targeted retry/re-analysis.
 
-### Supplier extraction request
-Use Supplier Specialist.
+Knowledge retrieval failure: continue only if the missing knowledge is non-material; otherwise surface a business-language issue.
 
-### Full bid analysis
-Use Criteria + Supplier discovery, human confirmation, then Evaluation Specialist.
+Script failure: structured error; never silently continue with partial deterministic results.
 
-### Follow-up explanation
-Use stored evaluation state; avoid unnecessary re-extraction.
+Configuration failure: return to human confirmation.
 
-### Weight-change scenario
-Create new configuration/version and invoke deterministic recalculation.
+Ambiguous knockout: return to human confirmation.
 
-### Material ambiguity
-Pause at the human confirmation gate.
+Report failure: retry report generation without rerunning evaluation.
 
----
-
-# Tool Governance
-
-Tools are capabilities, not agents.
-
-The Master or specialist should use:
-
-- file/attachment capabilities for uploaded inputs
-- document extraction for supported workbook/document formats
-- knowledge/table tools when required
-- export capabilities for final workbook generation
-- system tool discovery only when the required capability is not already available/known
-
-Tool discovery shall not be used as a mandatory step for every request.
-
----
-
-# Error Handling
-
-Agent failure:
-
-- retry once where appropriate
-- if still unsuccessful, isolate the affected task and return a structured recovery path
-
-Script failure:
-
-- return structured error
-- do not silently continue with partial deterministic results
-
-Configuration failure:
-
-- return to human confirmation
-
-Ambiguous knockout:
-
-- return to human confirmation
-
-Report failure:
-
-- retry report generation without rerunning evaluation
-
----
-
-# Implementation Rules
+## Implementation Rules
 
 1. One Master Deep Agent.
 2. Three direct specialist sub-agents maximum.
-3. Dynamic delegation inside the Master.
-4. Human confirmation is a formal state/gate.
-5. Candidate knockouts are not authoritative until confirmed.
-6. Confirmed rules are executed deterministically.
-7. Arithmetic and ranking are deterministic.
-8. Source responses remain verbatim during extraction.
-9. Specialist outputs are structured and evidence-backed.
-10. Report generation cannot alter evaluation data.
-11. Every deterministic stage returns explicit status/errors.
-12. The architecture should be tested incrementally: Master → Criteria → Supplier → HITL → Evaluation → Deterministic → Report.
-
----
-
-# Implementation Freeze
-
-This document is the V1.2 QI Studio implementation baseline. Deviations require a documented platform constraint, defect finding, or approved business requirement.
+3. GEP knowledge is a capability layer, not a fourth agent.
+4. Dynamic delegation inside the Master.
+5. Human confirmation is a formal gate.
+6. Candidate knockouts are not authoritative until confirmed.
+7. Confirmed rules are executed deterministically.
+8. Arithmetic and ranking are deterministic.
+9. Supplier source evidence remains source-faithful.
+10. GEP knowledge never silently overrides the RFP/configuration.
+11. Specialist outputs are structured and evidence-backed.
+12. Report generation cannot alter evaluation data.
+13. Every deterministic stage returns explicit status/errors.
