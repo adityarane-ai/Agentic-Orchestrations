@@ -1,8 +1,8 @@
 # 09. JSON Schemas
 
-**Document Version:** 1.1
+**Document Version:** 1.2
 
-**Status:** Architecture Baseline Updated
+**Status:** Deep Agent + HITL Contract Baseline
 
 **Parent Document:** Software Design Specification (SDS)
 
@@ -10,23 +10,9 @@
 
 # Purpose
 
-This document defines the canonical JSON contracts exchanged between modules.
+This document defines the canonical JSON contracts exchanged between modules of the RFP Qualitative Bid Analysis Agent.
 
-Version 1.1 adds the File Intake and Discovery contract and extends downstream schemas to preserve provenance, stable identifiers and confidence where inference is used.
-
-No undocumented fields shall be introduced during implementation.
-
----
-
-# Design Principles
-
-1. Canonical representation
-2. Explicit contracts
-3. Stable interfaces
-4. Business-oriented structures
-5. Extensibility
-6. Source provenance
-7. Explicit uncertainty
+The contracts explicitly separate source facts, agent interpretation, human-confirmed evaluation configuration, semantic scoring and deterministic results.
 
 ---
 
@@ -35,21 +21,28 @@ No undocumented fields shall be introduced during implementation.
 ```mermaid
 flowchart LR
 
-UserFiles --> FileIntake
+Files --> FileIntake
 FileIntake --> Criteria
-FileIntake --> Supplier
-Criteria --> EvaluationConfiguration
+FileIntake --> Suppliers
+Criteria --> ClarificationPackage
+Suppliers --> ClarificationPackage
+ClarificationPackage --> EvaluationConfiguration
 Criteria --> Validation
-Supplier --> Validation
-Criteria --> CanonicalQuestionMap
-EvaluationConfiguration --> CanonicalQuestionMap
-Supplier --> CanonicalQuestionMap
-Validation --> CanonicalQuestionMap
-CanonicalQuestionMap --> KnockoutResult
-KnockoutResult --> ScoringResult
-ScoringResult --> WeightedScores
-WeightedScores --> RankingResult
-RankingResult --> EvaluationResult
+Suppliers --> Validation
+EvaluationConfiguration --> Validation
+Criteria --> Canonical
+Suppliers --> Canonical
+EvaluationConfiguration --> Canonical
+Validation --> Canonical
+Canonical --> Knockout
+EvaluationConfiguration --> Knockout
+Canonical --> Scoring
+Knockout --> Scoring
+Scoring --> WeightedScores
+EvaluationConfiguration --> WeightedScores
+WeightedScores --> Ranking
+Knockout --> Ranking
+Ranking --> EvaluationResult
 EvaluationResult --> Report
 ```
 
@@ -65,17 +58,18 @@ EvaluationResult --> Report
       "fileId": "",
       "fileName": "",
       "mimeType": "",
-      "fileRole": "supplier_submission",
+      "fileRole": "unknown",
       "classificationConfidence": 0.0,
       "classificationReason": "",
       "supplierName": null,
       "provenance": {
-        "source": "uploaded_file"
+        "source": "uploaded_file",
+        "location": null
       },
       "sheets": [
         {
           "sheetName": "",
-          "sheetRole": "supplier_response",
+          "sheetRole": "unknown",
           "confidence": 0.0,
           "reason": "",
           "headers": [],
@@ -92,7 +86,7 @@ EvaluationResult --> Report
 }
 ```
 
-Allowed `fileRole` values:
+Allowed file roles:
 
 ```text
 evaluation_criteria
@@ -102,7 +96,7 @@ supporting_document
 unknown
 ```
 
-Allowed `sheetRole` values:
+Allowed sheet roles:
 
 ```text
 evaluation_criteria
@@ -144,6 +138,7 @@ unknown
           "defaultWeight": null,
           "scoringRubric": null,
           "knockoutCandidate": false,
+          "candidateAcceptanceCondition": null,
           "source": {
             "fileId": null,
             "sheetName": null,
@@ -160,38 +155,11 @@ unknown
 }
 ```
 
----
-
-# Schema 3 — Evaluation Configuration
-
-```json
-{
-  "approved": false,
-  "weights": [
-    {
-      "questionId": "",
-      "questionNumber": null,
-      "weight": 0
-    }
-  ],
-  "knockoutRules": [
-    {
-      "questionId": "",
-      "questionNumber": null,
-      "acceptanceCondition": "",
-      "mandatory": true
-    }
-  ],
-  "excludedQuestions": [],
-  "includedSections": [],
-  "configuredBy": "",
-  "configuredAt": ""
-}
-```
+Candidate knockout status is informational only. It is not authoritative until included in the confirmed Evaluation Configuration.
 
 ---
 
-# Schema 4 — Supplier
+# Schema 3 — Supplier
 
 ```json
 {
@@ -224,9 +192,91 @@ unknown
 }
 ```
 
+Supplier answer text must remain source-faithful.
+
 ---
 
-# Schema 5 — Validation Result
+# Schema 4 — Bid Clarification Package
+
+```json
+{
+  "packageId": "",
+  "runId": "",
+  "identifiedFiles": [],
+  "identifiedSuppliers": [],
+  "evaluationUnderstanding": {
+    "sections": [],
+    "questionCount": 0,
+    "scoringScale": null,
+    "scoringRubric": null,
+    "weights": []
+  },
+  "knockoutCandidates": [
+    {
+      "questionId": "",
+      "questionNumber": null,
+      "requirement": "",
+      "source": {},
+      "agentReason": "",
+      "confidence": 0.0,
+      "proposedAcceptanceCondition": null
+    }
+  ],
+  "ambiguities": [],
+  "missingInformation": [],
+  "explicitFacts": [],
+  "inferences": [],
+  "confirmationItems": [],
+  "status": "AWAITING_HUMAN_CONFIRMATION"
+}
+```
+
+---
+
+# Schema 5 — Evaluation Configuration
+
+```json
+{
+  "configurationId": "",
+  "version": 1,
+  "approved": false,
+  "approvedBy": null,
+  "approvedAt": null,
+  "runId": "",
+  "scoring": {
+    "scaleMin": null,
+    "scaleMax": null,
+    "rubric": []
+  },
+  "weights": [
+    {
+      "questionId": "",
+      "weight": 0
+    }
+  ],
+  "knockoutRules": [
+    {
+      "ruleId": "",
+      "questionId": "",
+      "questionNumber": null,
+      "requirement": "",
+      "acceptanceCondition": "",
+      "mandatory": true
+    }
+  ],
+  "excludedQuestions": [],
+  "includedSections": [],
+  "specialInstructions": [],
+  "sourceAssumptions": [],
+  "confirmationNotes": []
+}
+```
+
+If no knockouts are confirmed, `knockoutRules` shall be an empty array.
+
+---
+
+# Schema 6 — Validation Result
 
 ```json
 {
@@ -236,13 +286,14 @@ unknown
   "missingQuestions": [],
   "extraQuestions": [],
   "mappingIssues": [],
+  "configurationIssues": [],
   "sourceIssues": []
 }
 ```
 
 ---
 
-# Schema 6 — Canonical Question Map
+# Schema 7 — Canonical Question Map
 
 ```json
 {
@@ -261,7 +312,7 @@ unknown
         "weight": null,
         "guidance": null,
         "scoringRubric": null,
-        "knockout": false,
+        "knockoutConfirmed": false,
         "acceptanceCondition": null
       },
       "source": {
@@ -275,7 +326,7 @@ unknown
 
 ---
 
-# Schema 7 — Knockout Result
+# Schema 8 — Knockout Result
 
 ```json
 {
@@ -283,16 +334,20 @@ unknown
     {
       "supplierId": "",
       "supplierName": "",
-      "passed": true,
-      "status": "Qualified",
-      "failedQuestions": [
+      "qualified": true,
+      "status": "PASS",
+      "failedRules": [],
+      "ambiguousRules": [],
+      "decisions": [
         {
+          "ruleId": "",
           "questionId": "",
-          "questionNumber": null,
           "acceptanceCondition": "",
           "actualAnswer": null,
           "evidence": "",
-          "reason": ""
+          "status": "PASS",
+          "reason": "",
+          "source": {}
         }
       ]
     }
@@ -300,9 +355,18 @@ unknown
 }
 ```
 
+Allowed status values:
+
+```text
+PASS
+FAIL
+AMBIGUOUS
+NOT_APPLICABLE
+```
+
 ---
 
-# Schema 8 — Scoring Result
+# Schema 9 — Scoring Result
 
 ```json
 {
@@ -314,13 +378,14 @@ unknown
         {
           "questionId": "",
           "questionNumber": null,
-          "score": 0,
-          "maxScore": 0,
+          "score": null,
+          "maxScore": null,
           "reasoning": "",
           "evidence": "",
           "strengths": [],
           "weaknesses": [],
-          "confidence": 0.0
+          "confidence": 0.0,
+          "source": {}
         }
       ]
     }
@@ -328,9 +393,11 @@ unknown
 }
 ```
 
+The score recommendation is semantic output. It becomes numerically authoritative only after deterministic validation/calculation against the approved configuration.
+
 ---
 
-# Schema 9 — Weighted Scores
+# Schema 10 — Weighted Scores
 
 ```json
 {
@@ -341,10 +408,12 @@ unknown
       "sectionScores": [
         {
           "sectionName": "",
-          "weightedScore": 0
+          "weightedScore": 0,
+          "weight": 0
         }
       ],
-      "overallWeightedScore": 0
+      "overallWeightedScore": 0,
+      "calculationStatus": "VALID"
     }
   ]
 }
@@ -352,7 +421,7 @@ unknown
 
 ---
 
-# Schema 10 — Ranking Result
+# Schema 11 — Ranking Result
 
 ```json
 {
@@ -364,21 +433,27 @@ unknown
       "score": 0,
       "status": "Qualified"
     }
-  ]
+  ],
+  "disqualifiedSuppliers": [],
+  "tieHandling": ""
 }
 ```
 
-A disqualified supplier may be included for reporting but shall not receive a qualified rank.
+Disqualified suppliers do not receive a qualified rank.
 
 ---
 
-# Schema 11 — Evaluation Result
+# Schema 12 — Evaluation Result
 
 ```json
 {
+  "runId": "",
+  "scenarioId": "",
+  "configurationId": "",
   "summary": {
     "supplierCount": 0,
     "qualifiedSuppliers": 0,
+    "disqualifiedSuppliers": 0,
     "evaluationDate": "",
     "sourceFiles": []
   },
@@ -387,28 +462,58 @@ A disqualified supplier may be included for reporting but shall not receive a qu
       "supplierId": "",
       "supplierName": "",
       "rank": null,
-      "qualified": true,
-      "overallScore": 0,
+      "qualificationStatus": "Qualified",
+      "overallScore": null,
       "strengths": [],
       "weaknesses": [],
       "risks": [],
       "negotiationOpportunities": [],
-      "recommendation": ""
+      "recommendation": "",
+      "knockoutSummary": []
     }
-  ]
+  ],
+  "audit": {
+    "configurationVersion": 1,
+    "sourceReferences": [],
+    "assumptions": []
+  }
 }
 ```
 
 ---
 
-# Schema 12 — Report
+# Schema 13 — Evaluation Scenario
+
+```json
+{
+  "scenarioId": "",
+  "parentScenarioId": null,
+  "runId": "",
+  "changeType": "WEIGHT_CHANGE",
+  "changes": [],
+  "createdAt": "",
+  "status": "READY"
+}
+```
+
+---
+
+# Schema 14 — Report
 
 ```json
 {
   "generatedAt": "",
   "generatedBy": "",
-  "reportVersion": "1.1",
+  "reportVersion": "1.2",
   "reportType": "Excel",
+  "sourceRunId": "",
+  "sourceScenarioId": "",
+  "tabs": [
+    "Executive Summary",
+    "Supplier Profiles",
+    "Q&A Scorecard",
+    "Score Legend"
+  ],
   "downloadReference": "",
   "status": "Generated"
 }
@@ -416,51 +521,38 @@ A disqualified supplier may be included for reporting but shall not receive a qu
 
 ---
 
-# Schema Validation Rules
+# Report Data Contract
 
-## Required Fields
+### Executive Summary
+Consumes supplier ranking/status, section scores, key findings, recommendation and knockout status.
 
-Mandatory fields shall always be present.
+### Supplier Profiles
+Consumes supplier-level score/status, strengths, weaknesses, risks, section scores and recommendation.
 
-## Null Handling
+### Q&A Scorecard
+Consumes canonical question map + scoring result and preserves the original supplier response, score and evaluator comment/rationale.
 
-Unknown values use:
+### Score Legend
+Consumes the confirmed scoring scale/rubric and configuration metadata actually used in the run.
 
-```json
-null
-```
-
-Empty strings are used only when a source field exists but is blank.
-
-## Arrays
-
-Arrays shall always exist.
-
-## Booleans
-
-Boolean values shall be actual booleans, not strings.
-
-## Numbers
-
-Weights, scores and confidence values shall be numeric.
-
-## Confidence
-
-Confidence represents interpretation certainty, not evaluation quality.
-
-## Provenance
-
-Material extracted or inferred fields should retain source information sufficient for traceability.
+The report generator must not invent methodology text.
 
 ---
 
-# Versioning
+# Schema Validation Rules
 
-Schemas are the official V1.1 interfaces between modules.
-
-Breaking changes require a new SDS version and corresponding node specifications.
-
-Optional fields may be added in compatible minor revisions.
+1. Required fields must exist.
+2. Unknown source values use `null`.
+3. Empty strings are used only where a source field exists but is blank.
+4. Arrays always exist.
+5. Booleans are actual booleans.
+6. Numeric fields are numeric.
+7. Confidence represents interpretation certainty, not evaluation quality.
+8. Material provenance is retained.
+9. Confirmed configuration must have `approved=true` before evaluation.
+10. A knockout rule must have an acceptance condition unless the business process explicitly defines another decision method.
+11. No deterministic ranking may be produced when material validation errors remain.
+12. Scenario changes must retain parent scenario lineage.
 
 ---
 
@@ -468,23 +560,17 @@ Optional fields may be added in compatible minor revisions.
 
 | Schema | Owner |
 |---|---|
-| File Intake | File Intake & Discovery |
-| Criteria | Criteria Processing |
-| Evaluation Configuration | Evaluation Configuration |
-| Supplier | Supplier Processing |
-| Validation Result | Validation Node |
-| Canonical Question Map | Canonical Mapping |
-| Knockout Result | Knockout Evaluation |
-| Scoring Result | Qualitative Scoring |
-| Weighted Scores | Weighted Calculation |
-| Ranking Result | Ranking Engine |
-| Evaluation Result | Evaluation Result Builder / Evaluation Engine |
+| File Intake | Discovery |
+| Criteria | Criteria Specialist |
+| Supplier | Supplier Specialist |
+| Bid Clarification Package | Master |
+| Evaluation Configuration | Human confirmation workflow / Master |
+| Validation Result | Validation Script |
+| Canonical Question Map | Canonical Mapping Script |
+| Knockout Result | Knockout Script |
+| Scoring Result | Evaluation Specialist |
+| Weighted Scores | Weighted Calculation Script |
+| Ranking Result | Ranking Script |
+| Evaluation Result | Result Builder |
+| Evaluation Scenario | Master / Scenario workflow |
 | Report | Report Generator |
-
----
-
-# Summary
-
-The V1.1 schemas introduce a controlled discovery contract that allows flexible Excel inputs without weakening downstream data discipline.
-
-File discovery may be probabilistic, but once data enters the normalized contracts, evaluation remains structured, explainable and deterministic wherever possible.
