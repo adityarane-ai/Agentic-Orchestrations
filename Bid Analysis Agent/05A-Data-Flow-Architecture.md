@@ -19,30 +19,54 @@ The architecture separates source discovery, semantic normalization, human-confi
 # High-Level Data Flow
 
 ```mermaid
-flowchart TD
+flowchart TB
+    RAW[User Files + Request] --> M[Master Deep Agent]
 
-RAW[User Files] --> M[Master Deep Agent]
-M --> FI[Discovery Specialists]
-FI --> FILE[flow.fileIntake]
-FILE --> CRIT[flow.criteria]
-FILE --> SUP[flow.suppliers]
-CRIT --> BP[Bid Understanding Package]
-SUP --> BP
-BP --> HUMAN[Human Confirmation]
-HUMAN --> CFG[flow.evaluationConfiguration]
-CRIT --> VAL[Validation]
-SUP --> VAL
-CFG --> VAL
-VAL --> CAN[Canonical Evaluation Model]
-CAN --> KO[Confirmed Knockout Execution]
-CAN --> QS[Qualitative Scoring]
-KO --> QS
-QS --> SCORE[Deterministic Score Calculation]
-CFG --> SCORE
-SCORE --> RANK[Deterministic Ranking]
-RANK --> RESULT[flow.evaluationResult]
-RESULT --> REPORT[Four-Tab Report]
-RESULT --> QA[Post-Evaluation Q&A]
+    subgraph DISC[Discovery / Semantic Layer]
+        M --> C[Criteria Specialist]
+        M --> S[Supplier Evidence Specialist]
+        C --> CRIT[flow.criteria]
+        S --> SUP[flow.suppliers]
+        C --> CRIT
+    end
+
+    CRIT --> BP[flow.clarificationPackage]
+    SUP --> BP
+    BP --> HUMAN[Human Confirmation + Knockout Input]
+    HUMAN --> CFG[flow.evaluationConfiguration<br/>FROZEN AFTER APPROVAL]
+
+    subgraph DET[Deterministic Evaluation Layer]
+        CRIT --> VAL[Validation]
+        SUP --> VAL
+        CFG --> VAL
+        VAL --> CAN[Canonical Question Map]
+        CRIT --> CAN
+        SUP --> CAN
+        CFG --> CAN
+        CAN --> KO[Confirmed Knockout Execution]
+        CFG --> KO
+        CAN --> SEM[Evaluation Specialist<br/>Semantic Scoring]
+        CFG --> SEM
+        SEM --> SV[Score Validation / Calculation]
+        KO --> SV
+        CFG --> SV
+        SV --> W[Weighted Scores]
+        W --> R[Qualified Ranking]
+        KO --> R
+    end
+
+    R --> RESULT[flow.evaluationResult]
+    KO --> RESULT
+    SEM --> RESULT
+    RESULT --> MASTERQC[Master Challenge + Final Synthesis]
+    MASTERQC --> REPORT[Four-Tab Report]
+    RESULT --> QA[Post-Evaluation Q&A / Scenarios]
+    QA -->|Approved rule/weight change| CFG2[New Evaluation Configuration Version]
+    CFG2 --> VAL
+
+    HUMAN -. correction .-> M
+    KO -. ambiguous .-> HUMAN
+    VAL -. material error .-> HUMAN
 ```
 
 ---
@@ -73,20 +97,20 @@ Every shared object has one producer. Consumers treat it as read-only.
 
 ```mermaid
 flowchart LR
-
-Discovery --> fileIntake
-CriteriaSpecialist --> criteria
-SupplierSpecialist --> suppliers
-Master --> clarificationPackage
-HumanGate --> evaluationConfiguration
-Validation --> validationResult
-CanonicalMapping --> canonicalQuestionMap
-Knockout --> knockoutResult
-EvaluationSpecialist --> scoringResult
-WeightedCalculation --> weightedScores
-Ranking --> rankingResult
-ResultBuilder --> evaluationResult
-ReportGenerator --> report
+    FI[Discovery] --> fileIntake
+    C[Criteria Specialist] --> criteria
+    S[Supplier Specialist] --> suppliers
+    M[Master] --> clarificationPackage
+    H[Human Confirmation] --> evaluationConfiguration
+    V[Validation Script] --> validationResult
+    CM[Canonical Mapping Script] --> canonicalQuestionMap
+    K[Knockout Script] --> knockoutResult
+    E[Evaluation Specialist] --> scoringResult
+    W[Weighted Calculation Script] --> weightedScores
+    R[Ranking Script] --> rankingResult
+    RB[Result Builder] --> evaluationResult
+    RG[Report Generator] --> report
+    SC[Scenario Manager] --> evaluationScenario
 ```
 
 ---
