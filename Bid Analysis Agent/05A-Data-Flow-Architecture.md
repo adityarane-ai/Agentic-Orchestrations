@@ -1,22 +1,14 @@
 # 05A. Data Flow Architecture
 
-**Document Version:** 1.2
+**Document Version:** 1.3
 
-**Status:** Deep Agent + HITL Data Contract Baseline
+**Status:** Deep Agent + GEP Knowledge + HITL Data Contract Baseline
 
-**Parent Document:** Software Design Specification (SDS)
+## Purpose
 
----
+This document defines how information moves through the RFP Qualitative Bid Analysis Agent. The architecture separates source discovery, GEP domain knowledge, semantic normalization, human-confirmed configuration, qualitative reasoning and deterministic processing.
 
-# Purpose
-
-This document defines how information moves through the RFP Qualitative Bid Analysis Agent.
-
-The architecture separates source discovery, semantic normalization, human-confirmed configuration, qualitative reasoning and deterministic processing.
-
----
-
-# High-Level Data Flow
+## High-Level Data Flow
 
 ```mermaid
 flowchart TB
@@ -27,12 +19,20 @@ flowchart TB
         M --> S[Supplier Evidence Specialist]
         C --> CRIT[flow.criteria]
         S --> SUP[flow.suppliers]
-        C --> CRIT
     end
 
-    CRIT --> BP[flow.clarificationPackage]
-    SUP --> BP
-    BP --> HUMAN[Human Confirmation + Knockout Input]
+    subgraph KNOW[GEP Knowledge Layer]
+        K[GEP Category Toolkits / Internal Knowledge]
+        KT[Knowledge Library Tools]
+        K --> KT
+        KT --> C
+        KT --> E
+        KT --> M
+    end
+
+    CRIT --> CP[flow.clarificationPackage]
+    SUP --> CP
+    CP --> HUMAN[Human Confirmation + Knockout Input]
     HUMAN --> CFG[flow.evaluationConfiguration<br/>FROZEN AFTER APPROVAL]
 
     subgraph DET[Deterministic Evaluation Layer]
@@ -43,12 +43,13 @@ flowchart TB
         CRIT --> CAN
         SUP --> CAN
         CFG --> CAN
-        CAN --> KO[Confirmed Knockout Execution]
+        CAN --> E[Evaluation Specialist<br/>Semantic Scoring]
+        CFG --> E
+        E --> KO[Confirmed Knockout Execution]
+        CAN --> KO
         CFG --> KO
-        CAN --> SEM[Evaluation Specialist<br/>Semantic Scoring]
-        CFG --> SEM
-        SEM --> SV[Score Validation / Calculation]
-        KO --> SV
+        KO --> SV[Deterministic Score Validation / Calculation]
+        E --> SV
         CFG --> SV
         SV --> W[Weighted Scores]
         W --> R[Qualified Ranking]
@@ -56,12 +57,12 @@ flowchart TB
     end
 
     R --> RESULT[flow.evaluationResult]
+    E --> RESULT
     KO --> RESULT
-    SEM --> RESULT
-    RESULT --> MASTERQC[Master Challenge + Final Synthesis]
-    MASTERQC --> REPORT[Four-Tab Report]
+    RESULT --> QC[Master Challenge + Final Synthesis]
+    QC --> REPORT[Four-Tab Report]
     RESULT --> QA[Post-Evaluation Q&A / Scenarios]
-    QA -->|Approved rule/weight change| CFG2[New Evaluation Configuration Version]
+    QA -->|Approved change| CFG2[New Evaluation Configuration Version]
     CFG2 --> VAL
 
     HUMAN -. correction .-> M
@@ -69,15 +70,32 @@ flowchart TB
     VAL -. material error .-> HUMAN
 ```
 
----
+## Knowledge Flow Rule
 
-# Core Data Objects
+GEP knowledge is retrieved through Knowledge Library tools and is supplied as **context** to the Master, Criteria Specialist and Evaluation Specialist where relevant.
+
+```text
+GEP Knowledge
+     ↓
+Category / Methodology Context
+     ↓
+AI Interpretation
+     ↓
+Human Confirmation where business-rule impact exists
+     ↓
+Evaluation Configuration
+```
+
+Knowledge is never copied into supplier evidence and never silently becomes a mandatory criterion, knockout, weight or acceptance condition.
+
+## Core Data Objects
 
 | Object | Producer | Mutable | Purpose |
 |---|---|---:|---|
 | fileIntake | Discovery | No after acceptance | File/sheet roles, entities, provenance and confidence |
 | criteria | Criteria Specialist | No | Normalized source evaluation framework |
 | suppliers | Supplier Specialist | No | Normalized supplier evidence/responses |
+| knowledgeContext | Knowledge tools / Master | No | Relevant GEP contextual evidence and references |
 | clarificationPackage | Master | No | Human-readable current understanding and required confirmations |
 | evaluationConfiguration | Human confirmation workflow | Only before freeze | Approved business rules for a run |
 | validationResult | Validation | No | Structural findings |
@@ -89,9 +107,7 @@ flowchart TB
 | evaluationResult | Result Builder | No | Complete run result |
 | report | Report Generator | No | Generated deliverable |
 
----
-
-# Data Ownership
+## Data Ownership
 
 Every shared object has one producer. Consumers treat it as read-only.
 
@@ -100,11 +116,12 @@ flowchart LR
     FI[Discovery] --> fileIntake
     C[Criteria Specialist] --> criteria
     S[Supplier Specialist] --> suppliers
+    K[Knowledge Tools] --> knowledgeContext
     M[Master] --> clarificationPackage
     H[Human Confirmation] --> evaluationConfiguration
     V[Validation Script] --> validationResult
     CM[Canonical Mapping Script] --> canonicalQuestionMap
-    K[Knockout Script] --> knockoutResult
+    KO[Knockout Script] --> knockoutResult
     E[Evaluation Specialist] --> scoringResult
     W[Weighted Calculation Script] --> weightedScores
     R[Ranking Script] --> rankingResult
@@ -113,104 +130,28 @@ flowchart LR
     SC[Scenario Manager] --> evaluationScenario
 ```
 
----
+## Evaluation Configuration
 
-# Stage 0 — Discovery
+`flow.evaluationConfiguration` is the authoritative business-rule object for one run. It contains the confirmed scoring methodology, weights, knockout rules, acceptance conditions, included/excluded criteria, special instructions and confirmation metadata.
 
-Input: user-uploaded files.
+If the human confirms no knockouts, `knockoutRules = []`.
 
-Output: `flow.fileIntake`.
+Once approved, it is frozen. Changes create a new scenario/version.
 
-The object records file identity, role, sheet inventory, sheet roles, supplier identity candidates, criteria indicators, confidence, ambiguity and provenance.
+## Semantic Evaluation
 
-No score or procurement decision exists in this object.
+The Evaluation Specialist consumes:
 
----
+- canonical supplier responses
+- confirmed evaluation criteria
+- confirmed rubric/weights
+- relevant GEP category knowledge
 
-# Stage 1 — Criteria and Supplier Normalization
+It produces semantic assessments, score recommendations, evidence and rationale.
 
-Criteria Specialist produces `flow.criteria`.
+GEP knowledge is contextual. Supplier responses remain source truth.
 
-Supplier Specialist produces `flow.suppliers`.
-
-Both preserve source wording and provenance and distinguish explicit source facts from inferred mappings.
-
----
-
-# Stage 2 — Bid Clarification Package
-
-The Master combines the discovered outputs into `flow.clarificationPackage`.
-
-The package exposes:
-
-- what the agent believes the RFP/evaluation framework contains
-- what suppliers were identified
-- scoring and weights found
-- candidate knockout requirements
-- proposed acceptance conditions
-- ambiguities
-- missing information
-- items requiring confirmation
-
-This package is presented to the human evaluator.
-
----
-
-# Stage 3 — Evaluation Configuration
-
-Human confirmation creates `flow.evaluationConfiguration`.
-
-The configuration is separate from source criteria and records:
-
-- approved status
-- configuration version
-- scoring scale/rubric
-- weights
-- knockout rules
-- acceptance conditions
-- exclusions
-- included sections
-- confirmation metadata
-- assumptions/notes
-
-Once approved, the configuration is frozen for the run.
-
----
-
-# Stage 4 — Validation
-
-Consumes criteria, suppliers and confirmed configuration.
-
-Produces `flow.validationResult`.
-
-Errors prevent unreliable evaluation; warnings may be passed through.
-
----
-
-# Stage 5 — Canonical Mapping
-
-Consumes:
-
-- criteria
-- suppliers
-- evaluation configuration
-- validation result
-
-Produces `flow.canonicalQuestionMap`.
-
-This is the only evaluation representation consumed downstream.
-
----
-
-# Stage 6 — Semantic Evaluation
-
-The Evaluation Specialist consumes the canonical model and confirmed rubric and produces `flow.scoringResult` containing question-level assessments, evidence, reasoning, strengths and weaknesses.
-
-The specialist's numerical score recommendation is treated as a structured semantic output; arithmetic remains deterministic.
-
----
-
-# Stage 7 — Deterministic Processing
+## Deterministic Processing
 
 ```text
 Canonical Model
@@ -219,67 +160,36 @@ Confirmed Knockout Rules
     ↓
 Knockout Result
     ↓
-Semantic Scores
+Semantic Score Outputs
     ↓
-Deterministic Score Validation
+Score Validation / Arithmetic
     ↓
 Weighted Scores
     ↓
 Qualified Ranking
 ```
 
-An ambiguous knockout routes to the human gate rather than being silently failed.
+An ambiguous knockout routes to the human gate.
 
----
+## Reporting
 
-# Stage 8 — Master Challenge and Synthesis
-
-The Master verifies:
-
-- evidence coverage
-- source consistency
-- score rationale consistency
-- knockout consistency
-- ranking consistency
-
-It can request targeted specialist re-analysis before final synthesis.
-
----
-
-# Stage 9 — Reporting
-
-`flow.evaluationResult` is rendered into the standard four-tab workbook:
+The standard report contains:
 
 1. Executive Summary
 2. Supplier Profiles
 3. Q&A Scorecard
 4. Score Legend
 
-The report generator cannot alter evaluation data.
+The report generator renders the approved result and cannot modify evaluation logic.
 
----
-
-# Stage 10 — Post-Evaluation
-
-Stored evaluation state supports:
-
-- supplier comparisons
-- score explanations
-- knockout explanations
-- report regeneration
-- approved re-weighting scenarios
-
-Scenario changes create a new configuration/result lineage and preserve the original run.
-
----
-
-# Immutability Rules
+## Immutability Rules
 
 Immutable after acceptance:
 
 - `flow.fileIntake`
 - `flow.criteria`
 - `flow.suppliers`
+- `flow.knowledgeContext`
 - `flow.validationResult`
 - `flow.canonicalQuestionMap`
 - `flow.knockoutResult`
@@ -291,9 +201,7 @@ Immutable after acceptance:
 
 `flow.evaluationConfiguration` is editable only before approval/freeze or through a new scenario.
 
----
-
-# Provenance Rules
+## Provenance Rules
 
 Material values retain, where available:
 
@@ -302,12 +210,11 @@ Material values retain, where available:
 - source location
 - explicit/inferred indicator
 - confidence
+- knowledge source/reference where GEP knowledge materially influenced interpretation
 
 Supplier response text is never rewritten during extraction.
 
----
-
-# Data Contract Rules
+## Data Contract Rules
 
 1. Every shared object has exactly one producer.
 2. Consumers do not modify upstream objects.
@@ -315,4 +222,5 @@ Supplier response text is never rewritten during extraction.
 4. Arrays are always present.
 5. Material uncertainty is explicit.
 6. Human-confirmed rules are separate from source facts.
-7. Scenario lineage is preserved.
+7. GEP knowledge context is separate from supplier evidence.
+8. Scenario lineage is preserved.
