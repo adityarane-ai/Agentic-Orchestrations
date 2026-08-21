@@ -1,24 +1,14 @@
 # 03. Solution Overview
 
-**Document Version:** 1.2
+**Document Version:** 1.3
 
-**Status:** Deep Agent + Human-in-the-Loop Architecture Baseline
+**Status:** Deep Agent + GEP Knowledge + Human-in-the-Loop Architecture Baseline
 
-**Parent Document:** Software Design Specification (SDS)
+## Purpose
 
----
+The RFP Qualitative Bid Analysis Agent uses one Master Deep Agent, three bounded specialist sub-agents, GEP Knowledge Library tools, a formal Bid Understanding/Human Confirmation Gate and deterministic evaluation processing.
 
-# Purpose
-
-This chapter defines the high-level architecture of the RFP Qualitative Bid Analysis Agent.
-
-The solution uses one **Master Deep Agent** and three direct specialist sub-agents. The Master plans and orchestrates work dynamically; specialist agents perform bounded semantic tasks; deterministic processing performs validation, confirmed knockout rules, calculations and ranking.
-
-A formal **Bid Understanding / Human Confirmation Gate** occurs between discovery and evaluation.
-
----
-
-# Core Architecture
+## Core Architecture
 
 ```mermaid
 flowchart TB
@@ -26,11 +16,10 @@ flowchart TB
 
     subgraph ORCH[Adaptive Agentic Orchestration]
         M --> P{Determine required work + dependencies}
-        P --> C[Specialist 1<br/>RFP & Evaluation Criteria]
-        P --> S[Specialist 2<br/>Supplier Response & Evidence]
-        P --> E[Specialist 3<br/>Qualitative Evaluation & Comparison]
-
-        C --> B[Bid Understanding + Clarification Package]
+        P --> C[Criteria Specialist]
+        P --> S[Supplier Evidence Specialist]
+        P --> E[Evaluation Specialist]
+        C --> B[Bid Understanding]
         S --> B
         B --> H[Human Confirmation + Knockout Configuration]
         H -->|Correction| B
@@ -40,107 +29,114 @@ flowchart TB
         QC -->|Re-analysis| E
     end
 
+    subgraph KNOW[GEP INTERNAL KNOWLEDGE]
+        K[GEP Category Toolkits<br/>Playbooks • Benchmarks • Methodologies]
+        KT[Knowledge Library Tools]
+        K --> KT
+    end
+
+    KT -. context .-> M
+    KT -. context .-> C
+    KT -. context .-> E
+
     F --> V[Deterministic Validation]
     V --> CAN[Canonical Evaluation Model]
-    CAN --> K[Confirmed Knockout Rules]
-    K --> KO{Qualification status}
+    CAN --> KOR[Confirmed Knockout Rules]
+    KOR --> KO{Qualification}
     KO -->|Ambiguous| H
     KO -->|Fail| DQ[Disqualified]
-    KO -->|Pass| Q[Qualitative Scores]
+    KO -->|Pass| Q[Semantic Qualitative Scores]
     E --> Q
     Q --> CALC[Deterministic Score + Weight Calculation]
     CALC --> RANK[Deterministic Qualified Ranking]
     DQ --> RESULT[Evaluation Result]
     RANK --> RESULT
     RESULT --> SYN[Master Procurement Synthesis]
-    QC --> SYN
     SYN --> X[Four-Tab Excel Report]
     X --> OUT([OUTPUT])
 
     RESULT --> QA[Post-Evaluation Q&A / Scenarios]
-    QA -->|Explanation / comparison| SYN
-    QA -->|Approved weight/rule change| SCEN[New Scenario Configuration]
+    QA -->|Approved change| SCEN[New Scenario Configuration]
     SCEN --> V
-
-    M -. targeted re-analysis .-> C
-    M -. targeted re-analysis .-> S
 ```
 
-**Important:** the three specialist agents are not a fixed three-step pipeline. The Master decides which specialists are required and whether independent tasks can run in parallel. The Master has at most three direct specialist sub-agents in this V1 architecture.
+The three specialists are not a fixed sequential pipeline. The Master dynamically selects them and may run independent work in parallel.
 
----
+## GEP Knowledge Layer
 
-# Architectural Layers
+GEP category toolkits and internal knowledge are exposed through the Knowledge Library tools. They are a **domain-context capability**, not a fourth agent.
 
-## Layer 1 — Master Deep Agent
+Knowledge may provide:
 
-Owns:
+- category context
+- approved methodologies
+- evaluation guidance
+- benchmarks
+- best-practice references
+- procurement terminology
+- negotiation context
 
-- user intent
-- planning
-- task decomposition
-- delegation
-- tool selection
-- dependency management
-- reconciliation
-- clarification package creation
-- specialist challenge/QC
-- final synthesis
+The knowledge layer must never silently override the RFP or human-confirmed evaluation configuration.
 
-It does not own deterministic arithmetic, ranking or silent modification of confirmed business rules.
+```text
+GEP Knowledge
+     ↓
+Context / Benchmark / Guidance
+     ↓
+AI Interpretation
+     ↓
+Human Confirmation if business-rule impact exists
+     ↓
+Evaluation Configuration
+```
 
-## Layer 2 — Specialist Agents
+## Authority Model
 
-### Specialist 1 — RFP & Evaluation Criteria Analyst
+```text
+1. Human-confirmed Evaluation Configuration — run authority
+2. RFP / sourcing documents — source evaluation requirements
+3. GEP Knowledge — contextual guidance and benchmarks
+4. AI inference — only where supported and non-authoritative
+```
 
-Answers: **What are we supposed to evaluate?**
+Supplier evidence remains source truth and is not supplemented by GEP knowledge during extraction.
 
-Extracts sections, questions, criteria, weights, scoring rubric, candidate knockouts, acceptance-condition candidates and provenance.
+## Architectural Layers
 
-### Specialist 2 — Supplier Response & Evidence Analyst
+### Layer 1 — Master Deep Agent
 
-Answers: **What did each supplier actually submit?**
+Intent, planning, delegation, tool/knowledge selection, dependencies, reconciliation, HITL, challenge/QC and final synthesis.
 
-Extracts supplier identity, responses, evidence, source locations, missing responses and mapping confidence. Supplier wording is preserved.
+### Layer 2 — Specialist Agents
 
-### Specialist 3 — Qualitative Evaluation & Comparison Analyst
+**Criteria:** what are we evaluating?
 
-Answers: **How well does each supplier perform against the confirmed framework?**
+**Supplier:** what did each supplier actually submit?
 
-Produces qualitative assessments, evidence-backed score recommendations, strengths, weaknesses, risks, gaps and differentiators.
+**Evaluation:** how well does each supplier perform against the confirmed framework?
 
-## Layer 3 — Human Configuration Gate
+### Layer 3 — Knowledge Capability
 
-The system presents its current understanding and asks the human evaluator to:
+Relevant GEP internal knowledge retrieved through Knowledge Library tools.
 
-- confirm/correct the understanding
-- confirm or modify scoring/weighting assumptions
-- confirm/remove candidate knockouts
-- add missing knockout requirements
-- define/confirm acceptance conditions
-- provide material special instructions
+### Layer 4 — Human Configuration Gate
 
-## Layer 4 — Deterministic Evaluation
+Human confirms the agent's understanding, scoring/weights and knockout requirements.
 
-Performs:
+### Layer 5 — Deterministic Evaluation
 
-1. validation
-2. canonical mapping
-3. confirmed knockout execution
-4. deterministic score calculations
-5. weighting
-6. ranking
+Validation, canonical mapping, confirmed knockout execution, arithmetic, weighting and ranking.
 
-## Layer 5 — Master Synthesis + Reporting
+### Layer 6 — Synthesis + Reporting
 
-The Master interprets the structured results and produces procurement-level conclusions. The report generator only renders the approved result into the standard workbook format.
+Master explains the results; the report generator renders the approved results.
 
----
-
-# Operating Principle
+## Operating Principle
 
 ```text
 DISCOVER
+   ↓
+ENRICH WITH RELEVANT GEP KNOWLEDGE
    ↓
 EXPLAIN WHAT WAS UNDERSTOOD
    ↓
@@ -148,24 +144,20 @@ HUMAN CONFIRMS / CORRECTS
    ↓
 CONFIGURE KNOCKOUTS
    ↓
-FREEZE EVALUATION CONFIGURATION
+FREEZE CONFIGURATION
    ↓
-EVALUATE
+SEMANTIC EVALUATION
    ↓
-VALIDATE / APPLY RULES / CALCULATE / RANK
+DETERMINISTIC RULES / CALCULATIONS / RANKING
    ↓
-MASTER CHALLENGES RESULTS
+MASTER CHALLENGE
    ↓
-SYNTHESIZE
+SYNTHESIS
    ↓
 REPORT
 ```
 
----
-
-# Human-Governed Knockout Principle
-
-The architecture deliberately separates three responsibilities:
+## Human-Governed Knockout Principle
 
 ```text
 AI discovers candidate knockout requirements
@@ -175,94 +167,38 @@ Human confirms the business rule
 Deterministic logic executes the confirmed rule
 ```
 
-The agent shall never convert a merely preferred requirement into a knockout without human confirmation.
+If the human confirms no knockouts, the rule set is explicitly empty.
 
-If the human confirms that no knockouts apply, the configuration explicitly contains an empty knockout rule set.
+## Deterministic Boundary
 
----
+Semantic supplier assessment is AI reasoning and therefore not mathematically deterministic. Once the human-confirmed configuration and structured semantic score outputs are fixed, all validation, knockout execution, arithmetic, weighting and ranking are deterministic and reproducible.
 
-# Bid Clarification Package
+## Report Contract
 
-Before evaluation, the Master produces a structured package containing:
-
-- uploaded files and inferred roles
-- supplier identities
-- evaluation sections/questions
-- scoring scale and rubric detected
-- detected weights
-- potential knockout candidates
-- proposed acceptance conditions where inferable
-- source references
-- explicit vs inferred information
-- material ambiguities
-- missing information
-- items requiring human confirmation
-
-The package is the human governance checkpoint, not the final evaluation.
-
----
-
-# Deterministic Boundary
-
-The LLM is not authoritative for:
-
-- arithmetic
-- weighted-score calculations
-- ranking
-- confirmed knockout execution
-- changing an approved rule
-
-The LLM is authoritative only within its assigned semantic responsibilities and must provide evidence/provenance for material judgements.
-
----
-
-# Report Contract
-
-The standard output workbook contains exactly four primary tabs for V1:
+Exactly four primary tabs:
 
 1. **Executive Summary**
 2. **Supplier Profiles**
 3. **Q&A Scorecard**
 4. **Score Legend**
 
-The report generator shall preserve the approved reference workbook's visual hierarchy and formatting logic, including title bands, section bands, supplier headers, wrapped text, score presentation, strengths/weaknesses blocks and dynamic scaling.
+Formatting follows the approved reference workbook. The report generator cannot alter evaluation logic.
 
-The Score Legend shall describe the methodology actually used for the evaluation run. It shall not contain a generic claim that scoring was based on LLM domain benchmarks unless that was explicitly approved.
+## Dynamic Execution Cases
 
----
-
-# Dynamic Execution Cases
-
-| User request | Master behaviour |
+| Request | Behaviour |
 |---|---|
-| Explain RFP criteria | Use Criteria Specialist only if required |
-| Extract supplier responses | Use Supplier Specialist |
-| Full bid analysis | Criteria + Supplier, then Evaluation Specialist |
-| Compare already-evaluated suppliers | Use stored evaluation state; avoid re-extraction |
-| Change weights | Create a new evaluation scenario and deterministically recalculate |
-| Clarify knockout ambiguity | Return to human configuration gate |
-| Missing source information | Request only the affected input/information |
+| RFP criteria | Criteria Specialist + relevant knowledge |
+| Supplier extraction | Supplier Specialist, source-first |
+| Full bid analysis | Criteria + Supplier → HITL → Evaluation + knowledge |
+| Compare evaluated suppliers | Stored evaluation state |
+| Explain score | Stored result + relevant evidence/knowledge |
+| Change weight | New scenario + deterministic recalculation |
+| Ambiguous knockout | Human configuration gate |
+| Missing source information | Targeted clarification/retrieval |
 
----
+## Summary
 
-# Architecture Constraints
+> **AI interprets supplier evidence using the confirmed framework and relevant GEP knowledge. Human confirms material evaluation rules. Deterministic logic executes the decision. AI explains the outcome.**
 
-- One Master Deep Agent.
-- Maximum three direct specialist sub-agents in V1.
-- Specialists have bounded responsibilities.
-- Human confirmation is mandatory before the first evaluation run is frozen.
-- Confirmed configuration is immutable during that run.
-- Deterministic calculations and ranking are outside LLM authority.
-- Source data is preserved.
-- Provenance and material uncertainty are retained.
-- Reporting does not perform evaluation logic.
-
----
-
-# Summary
-
-The solution is a **Human-Governed Agentic Bid Evaluation system**:
-
-> **AI interprets the evidence. Human confirms the evaluation rules. Deterministic logic executes the decision. AI explains the outcome.**
-
-This is the Version 1.2 architectural baseline.
+This is the Version 1.3 architecture baseline.
