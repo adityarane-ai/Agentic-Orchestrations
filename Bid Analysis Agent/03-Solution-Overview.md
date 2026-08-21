@@ -21,49 +21,49 @@ A formal **Bid Understanding / Human Confirmation Gate** occurs between discover
 # Core Architecture
 
 ```mermaid
-flowchart TD
+flowchart TB
+    U([User + RFP / Supplier Files]) --> M[MASTER DEEP AGENT]
 
-U[User + RFP / Supplier Files]
-M[MASTER DEEP AGENT<br/>RFP QUALITATIVE BID ANALYSIS]
-C[Specialist 1<br/>RFP & Evaluation Criteria]
-S[Specialist 2<br/>Supplier Response & Evidence]
-E[Specialist 3<br/>Qualitative Evaluation & Comparison]
-B[Bid Understanding + Clarification Package]
-H[Human Confirmation + Knockout Configuration]
-F[Frozen Evaluation Configuration]
-V[Deterministic Validation + Canonicalization]
-K[Deterministic Confirmed Knockout Rules]
-Q[Qualitative Evaluation]
-W[Deterministic Weighted Scoring + Ranking]
-R[Master Challenge + Procurement Synthesis]
-X[Excel Report Generator]
-QA[Post-Evaluation Q&A / Scenarios]
+    subgraph ORCH[Adaptive Agentic Orchestration]
+        M --> P{Determine required work + dependencies}
+        P --> C[Specialist 1<br/>RFP & Evaluation Criteria]
+        P --> S[Specialist 2<br/>Supplier Response & Evidence]
+        P --> E[Specialist 3<br/>Qualitative Evaluation & Comparison]
 
-U --> M
-M --> C
-M --> S
-C --> B
-S --> B
-B --> M
-M --> H
-H --> F
-F --> V
-S --> Q
-C --> Q
-V --> K
-K --> Q
-Q --> W
-W --> R
-R --> X
-X --> M
-M --> QA
-QA --> M
+        C --> B[Bid Understanding + Clarification Package]
+        S --> B
+        B --> H[Human Confirmation + Knockout Configuration]
+        H -->|Correction| B
+        H -->|Approved| F[Frozen Evaluation Configuration]
+        F --> E
+        E --> QC[Master Challenge / QC]
+        QC -->|Re-analysis| E
+    end
 
-M -. targeted re-analysis .-> C
-M -. targeted re-analysis .-> S
-M -. targeted re-analysis .-> E
-M --> E
-E --> R
+    F --> V[Deterministic Validation]
+    V --> CAN[Canonical Evaluation Model]
+    CAN --> K[Confirmed Knockout Rules]
+    K --> KO{Qualification status}
+    KO -->|Ambiguous| H
+    KO -->|Fail| DQ[Disqualified]
+    KO -->|Pass| Q[Qualitative Scores]
+    E --> Q
+    Q --> CALC[Deterministic Score + Weight Calculation]
+    CALC --> RANK[Deterministic Qualified Ranking]
+    DQ --> RESULT[Evaluation Result]
+    RANK --> RESULT
+    RESULT --> SYN[Master Procurement Synthesis]
+    QC --> SYN
+    SYN --> X[Four-Tab Excel Report]
+    X --> OUT([OUTPUT])
+
+    RESULT --> QA[Post-Evaluation Q&A / Scenarios]
+    QA -->|Explanation / comparison| SYN
+    QA -->|Approved weight/rule change| SCEN[New Scenario Configuration]
+    SCEN --> V
+
+    M -. targeted re-analysis .-> C
+    M -. targeted re-analysis .-> S
 ```
 
 **Important:** the three specialist agents are not a fixed three-step pipeline. The Master decides which specialists are required and whether independent tasks can run in parallel. The Master has at most three direct specialist sub-agents in this V1 architecture.
