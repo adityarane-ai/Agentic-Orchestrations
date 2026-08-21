@@ -1,12 +1,12 @@
-# RFP Qualitative Evaluation Agent
+# RFP Qualitative Bid Analysis Agent
 
 ## Software Design Specification (SDS)
 
 **Project Codename:** Project Athena
 
-**Version:** 1.1
+**Version:** 1.2
 
-**Status:** Architecture Baseline Updated
+**Status:** Deep Agent + Human-in-the-Loop Architecture Baseline
 
 **Platform:** GEP Quantum Intelligence Studio (QI Studio)
 
@@ -14,129 +14,316 @@
 
 ## Purpose
 
-This repository contains the design, architecture, implementation specifications, prompts, scripts, workflows and technical documentation for the **RFP Qualitative Evaluation Agent**.
+This repository contains the architecture, requirements, orchestration, data contracts and implementation specifications for the **RFP Qualitative Bid Analysis Agent**.
 
-The system automates qualitative supplier evaluation during strategic sourcing and RFP events while preserving transparency, explainability, determinism and consultant-level decision quality.
+The solution is designed to automate qualitative supplier evaluation while preserving procurement governance, source traceability, deterministic calculations and human control over material evaluation rules.
 
-The repository is the architectural source of truth for the implementation.
-
----
-
-## Version 1.1 Product Principle
-
-The agent is designed for deployment to procurement users on the floor.
-
-### User expectation
-
-The user should be able to:
-
-> **Upload the Excel files they already have and let the agent figure out how to process them.**
-
-Users should not be required to:
-
-- create a prescribed workbook
-- rename files
-- use prescribed sheet names
-- use prescribed column names
-- manually classify files
-- reformat data that the system can reasonably interpret
-
-This does **not** mean the internal architecture becomes unstructured. The system introduces a File Intake and Discovery layer that translates flexible inputs into strict canonical contracts.
+This repository is the architectural source of truth for implementation.
 
 ---
 
-## Core Architecture
+# V1.2 Product Principle
+
+The user experience is intentionally simple:
 
 ```text
-                         USER
-                           ↓
-                      SUPERVISOR
-                           ↓
-                FILE INTAKE & DISCOVERY
-                           ↓
-                INPUT COMPLETENESS CHECK
-                           ↓
-             ┌─────────────┴─────────────┐
-             ↓                           ↓
-      CRITERIA PROCESSING        SUPPLIER PROCESSING
-             ↓                           ↓
-      EVALUATION CONFIGURATION           ↓
-             └─────────────┬─────────────┘
-                           ↓
-                   EVALUATION ENGINE
-                           ↓
-        VALIDATE → MAP → KNOCKOUT → SCORE
-                           ↓
-             WEIGHT → RANK → RECOMMEND
-                           ↓
-                    REPORT GENERATOR
-                           ↓
-                    POST-EVALUATION Q&A
+Upload the files you already have
+        ↓
+Agent understands them
+        ↓
+Agent shows what it understood
+        ↓
+Human confirms / corrects + defines knockouts
+        ↓
+Agent evaluates
+        ↓
+Deterministic scoring + ranking
+        ↓
+Four-tab Excel report
+```
+
+Users are not required to know internal filenames, sheet names, column names or templates.
+
+---
+
+# Core Architecture
+
+```mermaid
+flowchart TD
+
+U[USER<br/>RFP + Supplier Files]
+M[MASTER DEEP AGENT<br/>RFP QUALITATIVE BID ANALYSIS]
+C[Criteria Specialist]
+S[Supplier Evidence Specialist]
+E[Qualitative Evaluation Specialist]
+B[Bid Understanding / Clarification Package]
+H[Human Confirmation + Knockout Configuration]
+CFG[Frozen Evaluation Configuration]
+D[Deterministic Processing]
+Q[Master Challenge + Synthesis]
+R[Four-Tab Excel Report]
+QA[Post-Evaluation Q&A / Scenarios]
+
+U --> M
+M --> C
+M --> S
+C --> B
+S --> B
+B --> M
+M --> H
+H --> CFG
+CFG --> D
+C --> E
+S --> E
+CFG --> E
+E --> Q
+D --> Q
+Q --> R
+R --> M
+M --> QA
+QA --> M
+
+M -. targeted re-analysis .-> C
+M -. targeted re-analysis .-> S
+M -. targeted re-analysis .-> E
 ```
 
 ---
 
-## Design Principles
+# Master Deep Agent
 
-1. **Low-friction input** — users provide available files rather than system templates.
-2. **File intelligence** — the system discovers file and sheet roles automatically where possible.
-3. **Progressive disclosure** — ask only for information that cannot be reliably inferred.
-4. **Single responsibility** — every module has one business responsibility.
-5. **Deterministic first** — scripts handle validation, arithmetic, weighting and ranking.
-6. **LLM for semantics** — LLMs interpret business meaning but do not own deterministic calculations.
-7. **Canonical data** — downstream evaluation operates on normalized contracts.
-8. **Explainability** — decisions retain source evidence and reasoning.
-9. **Immutable source data** — extracted source information is preserved.
-10. **Single producer** — every Flow Variable has one owner.
+There is **one Master Deep Agent**.
 
----
+It is responsible for:
 
-## Major Modules
+- understanding the request
+- planning the work
+- deciding which specialist agents are needed
+- delegating work
+- exploiting parallelism where tasks are independent
+- managing dependencies
+- creating the Bid Clarification Package
+- managing human confirmation
+- challenging specialist results
+- requesting targeted re-analysis
+- synthesizing the final procurement output
 
-| Module | Responsibility |
-|---|---|
-| Supervisor | Conversation and workflow state |
-| File Intake & Discovery | Understand uploaded files and sheets |
-| Criteria Processing | Normalize evaluation criteria |
-| Evaluation Configuration | Configure approved evaluation rules |
-| Supplier Processing | Normalize supplier responses |
-| Evaluation Engine | Validate, map, evaluate, calculate and rank |
-| Report Generator | Generate consultant-ready outputs |
-| Post-Evaluation Q&A | Analyze completed evaluations |
+The Master has **at most three direct specialist sub-agents** in V1.
 
 ---
 
-## Evaluation Pipeline
+# Three Specialist Agents
+
+## 1. RFP & Evaluation Criteria Analyst
+
+**Question:** What are we supposed to evaluate?
+
+Discovers:
+
+- sections
+- questions
+- criteria
+- weights
+- scoring rubric
+- mandatory/candidate knockout requirements
+- acceptance-condition candidates
+- source provenance
+
+It does not score suppliers.
+
+## 2. Supplier Response & Evidence Analyst
+
+**Question:** What did each supplier actually submit?
+
+Discovers:
+
+- supplier identity
+- response boundaries
+- original response wording
+- evidence
+- provenance
+- unanswered questions
+- mapping confidence
+
+It does not score or rank suppliers.
+
+## 3. Qualitative Evaluation & Comparison Analyst
+
+**Question:** How well does each supplier perform against the confirmed framework?
+
+Produces:
+
+- criterion-level qualitative assessment
+- score recommendation
+- rationale
+- evidence
+- strengths
+- weaknesses
+- risks
+- gaps
+- supplier comparison
+
+It does not own arithmetic, weighting, ranking or confirmed knockout execution.
+
+---
+
+# Human-in-the-Loop Gate
+
+The agent does **not** immediately start scoring after discovering files.
+
+It first produces a **Bid Clarification Package** containing:
+
+- files and detected roles
+- suppliers
+- evaluation sections/questions
+- detected scoring scale/rubric
+- detected weights
+- candidate knockout requirements
+- proposed acceptance conditions
+- ambiguities
+- missing information
+- explicit facts vs inferred interpretations
+
+The human evaluator then:
+
+- confirms/corrects the understanding
+- confirms/modifies scoring/weights
+- confirms/removes candidate knockouts
+- adds additional knockout requirements
+- confirms acceptance conditions
+- provides material special instructions
+
+Only then is the Evaluation Configuration frozen and the evaluation run authorized.
+
+If the human says **there are no knockouts**, the configuration contains an explicit empty knockout rule set. The agent never invents one.
+
+---
+
+# Deterministic Boundary
+
+The system deliberately separates semantic reasoning from deterministic execution.
 
 ```text
-Raw Excel Files
+AI
+→ discovers and interprets evidence
+
+HUMAN
+→ confirms material evaluation rules
+
+DETERMINISTIC PROCESSING
+→ validates, executes confirmed knockouts, calculates scores, weights and ranks
+
+AI
+→ explains and synthesizes the result
+```
+
+LLMs are never the authoritative arithmetic or ranking engine.
+
+---
+
+# Evaluation Pipeline
+
+```text
+Raw Files
 ↓
-File Discovery
+Master Planning
 ↓
-Normalized Criteria + Suppliers
+Criteria + Supplier Discovery
+↓
+Bid Understanding Package
+↓
+Human Confirmation
+↓
+Frozen Evaluation Configuration
 ↓
 Validation
 ↓
-Canonical Question Map
+Canonical Evaluation Model
 ↓
-Knockout Evaluation
+Confirmed Knockout Evaluation
 ↓
-Qualitative Scoring
+Qualitative Evaluation
 ↓
-Weighted Score Calculation
+Deterministic Score / Weight Calculation
 ↓
-Supplier Ranking
+Deterministic Ranking
 ↓
-Recommendation
+Master Challenge + Synthesis
 ↓
 Report
 ```
 
 ---
 
-## Repository Structure
+# Standard Output Workbook
 
-Key specification documents:
+The approved output contract contains four primary tabs:
+
+### 1. Executive Summary
+
+Decision-maker view containing:
+
+- supplier qualification/status
+- ranking
+- overall score
+- section-level comparison
+- critical findings
+- recommendation
+- knockout summary
+
+### 2. Supplier Profiles
+
+Supplier-by-supplier view containing:
+
+- rank/status
+- overall score
+- summary
+- strengths
+- weaknesses
+- risks
+- section scores
+- recommendation
+
+### 3. Q&A Scorecard
+
+Detailed audit/evaluation view containing, for every question:
+
+- section
+- question
+- supplier response
+- score
+- evaluator comment/rationale
+- evidence where required
+
+Supplier response wording remains source-faithful.
+
+### 4. Score Legend
+
+Contains the actual scoring scale/rubric and methodology used for the run.
+
+It must not claim an unapproved scoring methodology.
+
+The workbook's visual hierarchy and formatting follow the approved reference workbook design.
+
+---
+
+# Post-Evaluation Scenarios
+
+The completed evaluation remains available for conversational analysis.
+
+Examples:
+
+- "Why did Supplier B rank third?"
+- "Compare Supplier A and C on implementation."
+- "Show the knockout failure for Supplier B."
+- "What happens if implementation weight becomes 30%?"
+- "Regenerate the report."
+
+Weight/rule changes create a new scenario and preserve the original result.
+
+---
+
+# Repository Documents
 
 ```text
 01-Executive-Summary.md
@@ -151,46 +338,53 @@ Key specification documents:
 09-JSON Schemas.md
 ```
 
-The Version 1.1 documents collectively define the new floor-user experience and its QI Studio implementation contract.
+These documents form the V1.2 implementation contract.
 
 ---
 
-## Source of Truth Rule
+# Architecture Invariants
+
+1. One Master Deep Agent.
+2. Maximum three direct specialist sub-agents.
+3. Dynamic delegation rather than a rigid three-agent pipeline.
+4. Human confirmation before the first evaluation run.
+5. Human-confirmed knockout rules only.
+6. Confirmed configuration is frozen during a run.
+7. Deterministic validation, arithmetic, weighting and ranking.
+8. Source response preservation and provenance.
+9. Master challenge/QC before final synthesis.
+10. Four-tab standardized report.
+11. Scenario lineage for approved re-evaluation.
+12. No silent invention of procurement rules or supplier facts.
+
+---
+
+# Source of Truth Rule
 
 Implementation in QI Studio shall follow the latest architecture and contract documents in this repository.
 
-If QI Studio limitations require a deviation, the deviation should be documented and tested rather than silently introduced into the workflow.
+If a QI Studio limitation requires deviation, the deviation should be documented and tested rather than silently introduced.
 
 ---
 
-## Scope
+# Intended Outcome
 
-Version 1.1 supports reasonably structured Excel inputs, including variations in:
-
-- filenames
-- sheet names
-- column names
-- workbook organization
-- supplier-file grouping
-
-The system does not claim unrestricted understanding of arbitrary unstructured documents.
-
----
-
-## Intended Outcome
-
-The final experience should feel simple to the floor user:
+The final experience should feel simple to the procurement user while the complexity remains inside the system:
 
 ```text
-Upload files
-    ↓
-Agent understands them
-    ↓
-Agent asks only necessary questions
-    ↓
-Evaluation runs
-    ↓
-Results + report
+Upload
+  ↓
+Understand
+  ↓
+Confirm
+  ↓
+Evaluate
+  ↓
+Validate
+  ↓
+Rank
+  ↓
+Report
 ```
 
-The complexity remains inside the architecture rather than being transferred to the user.
+> **AI interprets the evidence. Human confirms the evaluation rules. Deterministic logic executes the decision. AI explains the outcome.**
