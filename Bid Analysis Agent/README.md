@@ -4,49 +4,45 @@
 
 **Project Codename:** Project Athena
 
-**Version:** 1.2
+**Version:** 1.3
 
-**Status:** Deep Agent + Human-in-the-Loop Architecture Baseline
+**Status:** Deep Agent + GEP Knowledge + Human-in-the-Loop Architecture Baseline
 
 **Platform:** GEP Quantum Intelligence Studio (QI Studio)
 
----
-
 ## Purpose
 
-This repository contains the architecture, requirements, orchestration, data contracts and implementation specifications for the **RFP Qualitative Bid Analysis Agent**.
+This repository contains the architecture, requirements, orchestration, data contracts and implementation specifications for the RFP Qualitative Bid Analysis Agent.
 
-The solution is designed to automate qualitative supplier evaluation while preserving procurement governance, source traceability, deterministic calculations and human control over material evaluation rules.
+The solution combines agentic orchestration, GEP internal knowledge, human governance and deterministic evaluation processing.
 
-This repository is the architectural source of truth for implementation.
-
----
-
-# V1.2 Product Principle
-
-The user experience is intentionally simple:
+## V1.3 Product Principle
 
 ```text
 Upload the files you already have
         ↓
 Agent understands them
         ↓
+Relevant GEP knowledge enriches interpretation
+        ↓
 Agent shows what it understood
         ↓
 Human confirms / corrects + defines knockouts
         ↓
-Agent evaluates
+Evaluation configuration freezes
         ↓
-Deterministic scoring + ranking
+Agent evaluates using evidence + approved context
+        ↓
+Deterministic rules / scoring / weighting / ranking
+        ↓
+Master explains the result
         ↓
 Four-tab Excel report
 ```
 
 Users are not required to know internal filenames, sheet names, column names or templates.
 
----
-
-# Core Architecture
+## Core Architecture
 
 ```mermaid
 flowchart TB
@@ -66,9 +62,19 @@ flowchart TB
         QC -->|Re-analysis| E
     end
 
+    subgraph KNOW[GEP KNOWLEDGE]
+        K[GEP Category Toolkits<br/>Methodologies • Benchmarks]
+        KT[Knowledge Library Tools]
+        K --> KT
+    end
+
+    KT -. context .-> M
+    KT -. context .-> C
+    KT -. context .-> E
+
     CFG --> D[DETERMINISTIC PROCESSING]
-    D --> K[Confirmed Knockout Rules]
-    K --> SCORE[Score / Weight Calculation]
+    D --> KO[Confirmed Knockout Rules]
+    KO --> SCORE[Score / Weight Calculation]
     SCORE --> RANK[Qualified Ranking]
     RANK --> SYN[Master Final Synthesis]
     QC --> SYN
@@ -76,100 +82,53 @@ flowchart TB
     REPORT --> OUT([OUTPUT])
 
     RANK --> QA[Post-Evaluation Q&A / Scenarios]
-    QA -->|Explain stored results| SYN
-    QA -->|Approved rule / weight change| CFG2[New Scenario Configuration]
-    CFG2 --> D
-
-    M -. targeted re-analysis .-> C
-    M -. targeted re-analysis .-> S
-    M -. dynamic parallelism .-> C
-    M -. dynamic parallelism .-> S
+    QA -->|Approved change| SCEN[New Scenario Configuration]
+    SCEN --> D
 ```
 
----
+## GEP Knowledge Layer
 
-# Master Deep Agent
+GEP category toolkits and internal knowledge are accessed through Knowledge Library tools. They are a **contextual capability layer**, not a fourth sub-agent.
 
-There is **one Master Deep Agent**.
+Knowledge can inform category interpretation, benchmarks, evaluation guidance, methodology, terminology and procurement synthesis.
 
-It is responsible for:
+Knowledge cannot silently override the RFP, supplier evidence or human-confirmed evaluation configuration.
 
-- understanding the request
-- planning the work
-- deciding which specialist agents are needed
-- delegating work
-- exploiting parallelism where tasks are independent
-- managing dependencies
-- creating the Bid Clarification Package
-- managing human confirmation
-- challenging specialist results
-- requesting targeted re-analysis
-- synthesizing the final procurement output
+## Authority Model
 
-The Master has **at most three direct specialist sub-agents** in V1.
+```text
+Human-confirmed Evaluation Configuration — run authority
+                    ↑
+RFP / Sourcing Documents — source requirements
+                    ↑
+GEP Knowledge — contextual guidance / benchmark
+                    ↓
+AI Semantic Interpretation
+```
 
----
+## Master Deep Agent
 
-# Three Specialist Agents
+One Master Deep Agent is responsible for planning, dynamic delegation, tool and knowledge selection, dependency management, reconciliation, HITL, challenge/QC and final synthesis.
 
-## 1. RFP & Evaluation Criteria Analyst
+It has at most three direct specialist sub-agents.
 
-**Question:** What are we supposed to evaluate?
+## Three Specialist Agents
 
-Discovers:
+### 1. RFP & Evaluation Criteria Analyst
 
-- sections
-- questions
-- criteria
-- weights
-- scoring rubric
-- mandatory/candidate knockout requirements
-- acceptance-condition candidates
-- source provenance
+Determines what is being evaluated. It may use relevant GEP context but does not create authoritative rules from knowledge alone.
 
-It does not score suppliers.
+### 2. Supplier Response & Evidence Analyst
 
-## 2. Supplier Response & Evidence Analyst
+Determines what each supplier actually submitted. It is source-first and preserves supplier wording/provenance. It does not score or rank.
 
-**Question:** What did each supplier actually submit?
+### 3. Qualitative Evaluation & Comparison Analyst
 
-Discovers:
+Evaluates supplier responses against the confirmed framework using relevant GEP category context. It produces semantic score recommendations, evidence, rationale, strengths, weaknesses, risks and comparisons. It does not own arithmetic, weighting, ranking or confirmed knockout execution.
 
-- supplier identity
-- response boundaries
-- original response wording
-- evidence
-- provenance
-- unanswered questions
-- mapping confidence
+## Human-in-the-Loop Gate
 
-It does not score or rank suppliers.
-
-## 3. Qualitative Evaluation & Comparison Analyst
-
-**Question:** How well does each supplier perform against the confirmed framework?
-
-Produces:
-
-- criterion-level qualitative assessment
-- score recommendation
-- rationale
-- evidence
-- strengths
-- weaknesses
-- risks
-- gaps
-- supplier comparison
-
-It does not own arithmetic, weighting, ranking or confirmed knockout execution.
-
----
-
-# Human-in-the-Loop Gate
-
-The agent does **not** immediately start scoring after discovering files.
-
-It first produces a **Bid Clarification Package** containing:
+Before the first evaluation run, the Master creates a **Bid Clarification Package** containing:
 
 - files and detected roles
 - suppliers
@@ -178,150 +137,44 @@ It first produces a **Bid Clarification Package** containing:
 - detected weights
 - candidate knockout requirements
 - proposed acceptance conditions
+- relevant GEP context used
 - ambiguities
 - missing information
 - explicit facts vs inferred interpretations
 
-The human evaluator then:
+The human confirms/corrects the understanding, confirms/modifies scoring and weights, confirms/removes/adds knockout requirements and acceptance conditions, and provides material special instructions.
 
-- confirms/corrects the understanding
-- confirms/modifies scoring/weights
-- confirms/removes candidate knockouts
-- adds additional knockout requirements
-- confirms acceptance conditions
-- provides material special instructions
+If the human confirms there are no knockouts, the configuration contains an explicit empty knockout rule set.
 
-Only then is the Evaluation Configuration frozen and the evaluation run authorized.
+## Deterministic Boundary
 
-If the human says **there are no knockouts**, the configuration contains an explicit empty knockout rule set. The agent never invents one.
+Semantic qualitative evaluation is AI reasoning and is not mathematically deterministic. Once the human-confirmed configuration and structured semantic score outputs are fixed, the following are deterministic:
 
----
-
-# Deterministic Boundary
-
-The system deliberately separates semantic reasoning from deterministic execution.
-
-```text
-AI
-→ discovers and interprets evidence
-
-HUMAN
-→ confirms material evaluation rules
-
-DETERMINISTIC PROCESSING
-→ validates, executes confirmed knockouts, calculates scores, weights and ranks
-
-AI
-→ explains and synthesizes the result
-```
+- validation
+- confirmed knockout execution
+- score validation/calculation
+- weighting
+- ranking
+- result assembly
 
 LLMs are never the authoritative arithmetic or ranking engine.
 
----
+## Standard Output Workbook
 
-# Evaluation Pipeline
+The approved output contract contains exactly four primary tabs:
 
-```text
-Raw Files
-↓
-Master Planning
-↓
-Criteria + Supplier Discovery
-↓
-Bid Understanding Package
-↓
-Human Confirmation
-↓
-Frozen Evaluation Configuration
-↓
-Validation
-↓
-Canonical Evaluation Model
-↓
-Confirmed Knockout Evaluation
-↓
-Qualitative Evaluation
-↓
-Deterministic Score / Weight Calculation
-↓
-Deterministic Ranking
-↓
-Master Challenge + Synthesis
-↓
-Report
-```
+1. **Executive Summary**
+2. **Supplier Profiles**
+3. **Q&A Scorecard**
+4. **Score Legend**
 
----
+The visual hierarchy and formatting follow the approved reference workbook. The report generator is presentation-only and cannot change evaluation logic.
 
-# Standard Output Workbook
+## Post-Evaluation Scenarios
 
-The approved output contract contains four primary tabs:
+Completed evaluations remain available for conversational analysis. Approved rule/weight changes create new scenario lineage and preserve the original result.
 
-### 1. Executive Summary
-
-Decision-maker view containing:
-
-- supplier qualification/status
-- ranking
-- overall score
-- section-level comparison
-- critical findings
-- recommendation
-- knockout summary
-
-### 2. Supplier Profiles
-
-Supplier-by-supplier view containing:
-
-- rank/status
-- overall score
-- summary
-- strengths
-- weaknesses
-- risks
-- section scores
-- recommendation
-
-### 3. Q&A Scorecard
-
-Detailed audit/evaluation view containing, for every question:
-
-- section
-- question
-- supplier response
-- score
-- evaluator comment/rationale
-- evidence where required
-
-Supplier response wording remains source-faithful.
-
-### 4. Score Legend
-
-Contains the actual scoring scale/rubric and methodology used for the run.
-
-It must not claim an unapproved scoring methodology.
-
-The workbook's visual hierarchy and formatting follow the approved reference workbook design.
-
----
-
-# Post-Evaluation Scenarios
-
-The completed evaluation remains available for conversational analysis.
-
-Examples:
-
-- "Why did Supplier B rank third?"
-- "Compare Supplier A and C on implementation."
-- "Show the knockout failure for Supplier B."
-- "What happens if implementation weight becomes 30%?"
-- "Regenerate the report."
-
-Weight/rule changes create a new scenario and preserve the original result.
-
----
-
-# Repository Documents
+## Repository Documents
 
 ```text
 01-Executive-Summary.md
@@ -336,53 +189,29 @@ Weight/rule changes create a new scenario and preserve the original result.
 09-JSON Schemas.md
 ```
 
-These documents form the V1.2 implementation contract.
+These documents form the V1.3 implementation contract.
 
----
-
-# Architecture Invariants
+## Architecture Invariants
 
 1. One Master Deep Agent.
 2. Maximum three direct specialist sub-agents.
-3. Dynamic delegation rather than a rigid three-agent pipeline.
-4. Human confirmation before the first evaluation run.
-5. Human-confirmed knockout rules only.
-6. Confirmed configuration is frozen during a run.
-7. Deterministic validation, arithmetic, weighting and ranking.
-8. Source response preservation and provenance.
-9. Master challenge/QC before final synthesis.
-10. Four-tab standardized report.
-11. Scenario lineage for approved re-evaluation.
-12. No silent invention of procurement rules or supplier facts.
+3. GEP knowledge is a capability layer, not a fourth agent.
+4. Dynamic delegation rather than a rigid pipeline.
+5. Human confirmation before the first evaluation run.
+6. Human-confirmed knockout rules only.
+7. Confirmed configuration is frozen during a run.
+8. Deterministic validation, knockout execution, arithmetic, weighting and ranking.
+9. Supplier source evidence remains source-faithful.
+10. GEP knowledge never silently overrides source or confirmed configuration.
+11. Master challenge/QC before final synthesis.
+12. Four-tab standardized report.
+13. Scenario lineage for approved re-evaluation.
+14. No silent invention of procurement rules or supplier facts.
 
----
+## Source of Truth Rule
 
-# Source of Truth Rule
+Implementation in QI Studio shall follow the latest architecture and contract documents in this repository. If a QI Studio limitation requires deviation, the deviation should be documented and tested rather than silently introduced.
 
-Implementation in QI Studio shall follow the latest architecture and contract documents in this repository.
+## Intended Outcome
 
-If a QI Studio limitation requires deviation, the deviation should be documented and tested rather than silently introduced.
-
----
-
-# Intended Outcome
-
-The final experience should feel simple to the procurement user while the complexity remains inside the system:
-
-```text
-Upload
-  ↓
-Understand
-  ↓
-Confirm
-  ↓
-Evaluate
-  ↓
-Validate
-  ↓
-Rank
-  ↓
-Report
-```
-
-> **AI interprets the evidence. Human confirms the evaluation rules. Deterministic logic executes the decision. AI explains the outcome.**
+> **AI interprets supplier evidence using the confirmed framework and relevant GEP knowledge. Human confirms material evaluation rules. Deterministic logic executes the decision. AI explains the outcome.**
