@@ -19,32 +19,53 @@ The contracts explicitly separate source facts, agent interpretation, human-conf
 # Schema Relationships
 
 ```mermaid
-flowchart LR
+flowchart TB
+    FILES[Uploaded Files] --> FI[FileIntake]
+    FI --> CRIT[Criteria]
+    FI --> SUP[Suppliers]
 
-Files --> FileIntake
-FileIntake --> Criteria
-FileIntake --> Suppliers
-Criteria --> ClarificationPackage
-Suppliers --> ClarificationPackage
-ClarificationPackage --> EvaluationConfiguration
-Criteria --> Validation
-Suppliers --> Validation
-EvaluationConfiguration --> Validation
-Criteria --> Canonical
-Suppliers --> Canonical
-EvaluationConfiguration --> Canonical
-Validation --> Canonical
-Canonical --> Knockout
-EvaluationConfiguration --> Knockout
-Canonical --> Scoring
-Knockout --> Scoring
-Scoring --> WeightedScores
-EvaluationConfiguration --> WeightedScores
-WeightedScores --> Ranking
-Knockout --> Ranking
-Ranking --> EvaluationResult
-EvaluationResult --> Report
+    CRIT --> CLAR[Bid Clarification Package]
+    SUP --> CLAR
+    CLAR --> HUMAN[Human Confirmation]
+    HUMAN --> CFG[Evaluation Configuration]
+
+    CRIT --> VAL[Validation Result]
+    SUP --> VAL
+    CFG --> VAL
+
+    VAL --> CAN[Canonical Question Map]
+    CRIT --> CAN
+    SUP --> CAN
+    CFG --> CAN
+
+    CAN --> KO[Knockout Result]
+    CFG --> KO
+    CAN --> SCORE[Scoring Result]
+    CFG --> SCORE
+
+    KO --> SCOREVAL[Deterministic Score Validation]
+    SCORE --> SCOREVAL
+    CFG --> SCOREVAL
+
+    SCOREVAL --> WS[Weighted Scores]
+    KO --> RANK[Ranking Result]
+    WS --> RANK
+
+    KO -. ambiguous .-> HUMAN
+    VAL -. material error .-> HUMAN
+
+    RANK --> ER[Evaluation Result]
+    SCORE --> ER
+    KO --> ER
+    CFG --> ER
+    ER --> REPORT[Report]
+    ER --> QA[Post-Evaluation State]
+    QA -->|New approved scenario| SCEN[Evaluation Scenario]
+    SCEN --> CFG2[New Evaluation Configuration]
+    CFG2 --> VAL
 ```
+
+The diagram intentionally separates **candidate/source information**, **human-confirmed business rules**, **semantic scoring** and **deterministic results**.
 
 ---
 
