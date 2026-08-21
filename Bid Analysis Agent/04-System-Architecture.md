@@ -1,8 +1,8 @@
 # 04. System Architecture
 
-**Document Version:** 1.1
+**Document Version:** 1.2
 
-**Status:** Architecture Baseline Updated
+**Status:** Architecture Baseline Frozen
 
 **Parent Document:** Software Design Specification (SDS)
 
@@ -10,459 +10,275 @@
 
 # Purpose
 
-This document defines the complete system architecture of the RFP Qualitative Evaluation Agent.
+This document defines the production architecture of the RFP Qualitative Bid Analysis Agent.
 
-Version 1.1 introduces a **File Intake and Discovery** capability so floor users can upload available Excel files without being required to understand or conform to internal workbook templates.
-
-The architecture remains modular, service-oriented, conversation-driven and deterministic wherever possible.
+The architecture uses one Master Deep Agent with three direct specialist sub-agents, a formal human confirmation gate, explicit Flow Variable contracts and deterministic evaluation processing.
 
 ---
 
 # Architectural Overview
 
-The solution separates conversational orchestration, file interpretation, procurement processing, evaluation and reporting.
+```mermaid
+flowchart TD
+
+U[User + Uploaded Files]
+M[MASTER DEEP AGENT]
+C[Criteria Specialist]
+S[Supplier Evidence Specialist]
+E[Qualitative Evaluation Specialist]
+B[Bid Understanding Package]
+H[Human Confirmation + Knockout Input]
+CFG[Frozen Evaluation Configuration]
+V[Validation]
+MAP[Canonical Mapping]
+K[Confirmed Knockout Execution]
+Q[Qualitative Scoring]
+W[Weighted Score Calculation]
+R[Deterministic Ranking]
+SYN[Master Challenge + Synthesis]
+REP[Four-Tab Excel Report]
+QA[Post-Evaluation Q&A]
+
+U --> M
+M --> C
+M --> S
+C --> B
+S --> B
+B --> M
+M --> H
+H --> CFG
+CFG --> V
+V --> MAP
+MAP --> K
+K --> Q
+C --> Q
+S --> Q
+M --> E
+E --> SYN
+Q --> W
+W --> R
+R --> SYN
+SYN --> REP
+REP --> M
+M --> QA
+QA --> M
+
+M -. re-analysis .-> C
+M -. re-analysis .-> S
+M -. re-analysis .-> E
+```
+
+---
+
+# Component Model
+
+| Component | Type | Primary responsibility |
+|---|---|---|
+| Master Deep Agent | Deep Agent | Planning, delegation, reconciliation, HITL, synthesis |
+| Criteria Specialist | Sub-agent | RFP/evaluation framework understanding |
+| Supplier Specialist | Sub-agent | Supplier response/evidence extraction |
+| Evaluation Specialist | Sub-agent | Qualitative evaluation/comparison |
+| Human Confirmation Gate | Conversation/control | Confirm evaluation understanding and knockout rules |
+| Validation | Script | Deterministic structural validation |
+| Canonical Mapping | Script | Deterministic normalized evaluation model |
+| Knockout Execution | Script | Execute confirmed acceptance conditions |
+| Qualitative Scoring | Agent | Semantic assessment against approved rubric |
+| Weighted Calculation | Script | Deterministic arithmetic |
+| Ranking | Script | Deterministic qualified ranking |
+| Report Generator | Export capability | Render approved result into workbook |
+| Post-Evaluation Q&A | Master/tool workflow | Explain and analyze stored results |
+
+---
+
+# Master Deep Agent
+
+The Master owns:
+
+- request interpretation
+- execution planning
+- dynamic specialist delegation
+- tool use
+- parallelism where tasks are independent
+- dependency management
+- bid-understanding synthesis
+- human confirmation interaction
+- specialist challenge/QC
+- final procurement synthesis
+
+The Master shall not silently alter a confirmed evaluation configuration.
+
+The Master has at most three direct specialist sub-agents in this architecture.
+
+---
+
+# Specialist Boundaries
+
+## Criteria Specialist
+
+Input: discovered RFP/evaluation sources.
+
+Output: criteria, sections, questions, weights, rubric, candidate knockouts, provenance and inference indicators.
+
+No supplier scoring.
+
+## Supplier Specialist
+
+Input: discovered supplier sources.
+
+Output: supplier identity, raw responses, evidence, provenance, unanswered questions and mapping confidence.
+
+No evaluation, scoring or ranking.
+
+## Evaluation Specialist
+
+Input: confirmed evaluation framework + supplier evidence.
+
+Output: qualitative assessments, score recommendations, rationale, evidence, strengths, weaknesses, risks and comparisons.
+
+It does not execute arithmetic, weighting or ranking.
+
+---
+
+# Human Confirmation Gate
+
+The first-pass output is a **Bid Clarification Package**.
+
+The human evaluator confirms/corrects:
+
+- file roles
+- supplier identities
+- evaluation sections/questions
+- scoring scale/rubric
+- weights
+- candidate knockout requirements
+- additional knockout requirements
+- acceptance conditions
+- material special instructions
+
+The configuration is not considered executable until the human confirms it.
+
+---
+
+# Evaluation Configuration
+
+`flow.evaluationConfiguration` is the authoritative business-rule object for one evaluation run.
+
+It contains:
+
+- configuration version
+- approval status
+- confirmed scoring methodology
+- confirmed weights
+- knockout rules
+- acceptance conditions
+- included/excluded criteria
+- human confirmation metadata
+- source/assumption notes
+
+Once approved, it is frozen for that run.
+
+A changed weighting or business rule creates a new scenario/version rather than silently overwriting the original.
+
+---
+
+# Deterministic Evaluation Boundary
+
+The deterministic layer performs:
+
+```text
+Validation
+↓
+Canonical Mapping
+↓
+Confirmed Knockout Execution
+↓
+Score Arithmetic
+↓
+Weighted Calculation
+↓
+Qualified Ranking
+```
+
+Semantic scoring remains an agent responsibility, but the numeric calculations use the agent's structured score outputs and confirmed configuration.
+
+---
+
+# Failure / Recovery Architecture
 
 ```mermaid
 flowchart TD
 
-U[User]
-S[Supervisor Agent]
-FI[File Intake & Discovery]
-CP[Criteria Processing]
-EC[Evaluation Configuration]
-SP[Supplier Processing]
-EE[Evaluation Engine]
-RG[Report Generator]
-QA[Post Evaluation Q&A]
-
-U --> S
-S --> FI
-FI --> CP
-FI --> SP
-FI --> S
-CP --> EC
-EC --> S
-SP --> EE
-CP --> EE
-EC --> EE
-EE --> RG
-EE --> QA
-RG --> S
-QA --> S
-S --> U
+A[Agent / Script Output] --> B{Valid?}
+B -->|Yes| C[Continue]
+B -->|No, recoverable| D[Targeted Re-analysis / Correction]
+D --> A
+B -->|Material human decision| E[Human Confirmation]
+E --> F[Update Configuration / Input]
+F --> A
+B -->|Unrecoverable source issue| G[Business-language Error]
 ```
+
+The system must isolate affected inputs where possible rather than restarting the entire evaluation.
 
 ---
 
-# Layered Architecture
+# Post-Evaluation Architecture
 
-```text
-Presentation Layer
-    User
-    Supervisor
+Completed evaluation state is retained.
 
-Input Intelligence Layer
-    File Intake & Discovery
+Follow-up questions use:
 
-Processing Layer
-    Criteria Processing
-    Evaluation Configuration
-    Supplier Processing
+- evaluation configuration
+- canonical evaluation data
+- knockout results
+- scoring results
+- weighted scores
+- ranking results
+- generated report metadata
 
-Evaluation Layer
-    Evaluation Engine
+A request such as "Why is Supplier B ranked third?" should use stored results rather than re-running extraction.
 
-Reporting / Knowledge Layer
-    Report Generator
-    Post-Evaluation Q&A
-```
+A request such as "What if implementation weight changes to 30%?" creates a new scenario, recalculates deterministically and preserves the original run.
 
 ---
 
-# System Components
+# Reporting Architecture
 
-The solution consists of eight primary components.
+The standard report is a four-tab Excel workbook:
 
-| Component | Responsibility |
-|---|---|
-| Supervisor Agent | Conversation orchestration and lifecycle management |
-| File Intake & Discovery | Understand uploaded files and workbook structures |
-| Criteria Processing | Normalize evaluation criteria |
-| Evaluation Configuration | Configure business-approved evaluation rules |
-| Supplier Processing | Normalize supplier responses |
-| Evaluation Engine | Execute procurement evaluation |
-| Report Generator | Generate consultant-ready deliverables |
-| Post Evaluation Q&A | Analyze completed evaluations conversationally |
+### 1. Executive Summary
+Decision-maker view with ranking/status, overall and section-level results, critical findings and recommendation.
 
----
+### 2. Supplier Profiles
+Supplier-specific assessment, strengths, weaknesses, section scores and qualification status.
 
-# 1. Supervisor Agent
+### 3. Q&A Scorecard
+Question-level response, score and evaluator comment for each supplier, grouped by evaluation section.
 
-The Supervisor is the central conversational orchestration component.
+### 4. Score Legend
+Scoring scale/rubric and methodology actually used in the run.
 
-Responsibilities:
-
-- Greeting users
-- Explaining the workflow
-- Inviting users to upload available files
-- Maintaining `flow.conversationState`
-- Invoking File Intake & Discovery
-- Determining whether sufficient information exists to proceed
-- Asking targeted clarification questions only when required
-- Initiating downstream processing
-- Receiving module outputs
-- Returning results
-- Supporting follow-up analysis
-
-The Supervisor never performs procurement evaluation itself.
+Formatting is governed by the approved reference workbook design. Report generation is presentation-only and cannot modify evaluation results.
 
 ---
 
-# 2. File Intake & Discovery
-
-## Purpose
-
-Translate flexible user-provided Excel files into structured information about what each file and sheet represents.
-
-## Responsibilities
-
-- Accept one or more files
-- Inspect workbook metadata
-- Discover sheets
-- Classify file roles
-- Classify sheet roles
-- Detect evaluation criteria
-- Detect supplier submissions
-- Detect combined workbooks
-- Identify supplier names
-- Detect supporting information
-- Preserve provenance
-- Assign classification confidence
-- Identify material ambiguity
-- Identify missing required business information
-
-## File Classifications
-
-```text
-evaluation_criteria
-supplier_submission
-combined_evaluation_and_supplier
-supporting_document
-unknown
-```
-
-## Sheet Classifications
-
-```text
-evaluation_criteria
-supplier_response
-technical_response
-commercial_response
-company_profile
-references
-coverage
-instructions
-supporting_information
-irrelevant
-unknown
-```
-
-## Output
-
-```text
-flow.fileIntake
-```
-
-The module does not score suppliers, calculate results or modify source data.
-
----
-
-# 3. Criteria Processing
-
-The Criteria Processing module consumes discovered criteria sources and creates the normalized criteria object.
-
-Responsibilities include:
-
-- Extract sections
-- Extract questions/requirements
-- Preserve source numbering
-- Create stable internal IDs where necessary
-- Extract weights
-- Extract scoring guidance
-- Extract rubrics
-- Identify knockout candidates
-- Preserve source provenance
-
-Produces:
-
-```text
-flow.criteria
-```
-
-The extracted criteria are immutable source data.
-
----
-
-# 4. Evaluation Configuration
-
-The Evaluation Configuration module acts as the business-rule layer between source criteria and evaluation.
-
-Responsibilities:
-
-- Review criteria
-- Configure weights
-- Configure knockout questions
-- Define acceptance conditions
-- Exclude questions where permitted
-- Approve evaluation configuration
-
-Produces:
-
-```text
-flow.evaluationConfiguration
-```
-
-The original criteria remain immutable.
-
----
-
-# 5. Supplier Processing
-
-The Supplier Processing module consumes discovered supplier sources and produces normalized supplier objects.
-
-Responsibilities:
-
-- Extract supplier responses
-- Preserve response wording
-- Preserve question references
-- Preserve section context
-- Detect unanswered questions
-- Identify supplier names
-- Preserve provenance
-
-Produces:
-
-```text
-flow.suppliers[]
-```
-
-The module performs no evaluation.
-
----
-
-# 6. Evaluation Engine
-
-The Evaluation Engine performs procurement-specific analysis only after input normalization.
-
-Internal workflow:
-
-```text
-Validate Questionnaire Structure
-        ↓
-Build Canonical Question Map
-        ↓
-Apply Evaluation Configuration
-        ↓
-Knockout Evaluation
-        ↓
-Qualitative Scoring
-        ↓
-Weighted Score Calculation
-        ↓
-Supplier Ranking
-        ↓
-Recommendation Generation
-```
-
-Produces:
-
-```text
-flow.evaluationResult
-```
-
-The Evaluation Engine shall not inspect raw workbook layouts directly.
-
----
-
-# 7. Report Generator
-
-Consumes:
-
-```text
-flow.evaluationResult
-```
-
-Produces:
-
-```text
-flow.report
-```
-
-Responsibilities:
-
-- Executive summary
-- Supplier ranking
-- Detailed scorecards
-- Knockout summary
-- Strengths and weaknesses
-- Recommendations
-- Excel workbook
-
-No procurement evaluation logic exists in the reporting layer.
-
----
-
-# 8. Post Evaluation Q&A
-
-Consumes:
-
-```text
-flow.evaluationResult
-flow.report
-```
-
-Supports:
-
-- Supplier comparisons
-- Score explanations
-- Knockout explanations
-- Weight-change analysis
-- Ranking regeneration
-- Report regeneration
-
-It does not repeat extraction unless explicitly requested after a material input change.
-
----
-
-# Architectural Boundaries
-
-Every module owns its internal implementation.
-
-Modules communicate through documented Flow Variables.
-
-```mermaid
-flowchart LR
-
-FileIntake -->|flow.fileIntake| Supervisor
-CriteriaProcessing -->|flow.criteria| Flow
-EvaluationConfiguration -->|flow.evaluationConfiguration| Flow
-SupplierProcessing -->|flow.suppliers| Flow
-EvaluationEngine -->|flow.evaluationResult| Flow
-ReportGenerator -->|flow.report| Flow
-
-Flow --> Supervisor
-```
-
-No downstream evaluation module may directly inspect another module's internal implementation.
-
----
-
-# Processing Lifecycle
-
-```mermaid
-stateDiagram-v2
-
-[*] --> INITIAL
-INITIAL --> WAITING_FOR_FILES
-WAITING_FOR_FILES --> DISCOVERING_FILES
-DISCOVERING_FILES --> ASSESSING_INPUT
-ASSESSING_INPUT --> PROCESSING_CRITERIA
-ASSESSING_INPUT --> PROCESSING_SUPPLIERS
-ASSESSING_INPUT --> CLARIFICATION_REQUIRED
-CLARIFICATION_REQUIRED --> ASSESSING_INPUT
-PROCESSING_CRITERIA --> CONFIGURING_EVALUATION
-CONFIGURING_EVALUATION --> WAITING_FOR_SUPPLIERS
-WAITING_FOR_SUPPLIERS --> PROCESSING_SUPPLIERS
-PROCESSING_SUPPLIERS --> RUNNING_EVALUATION
-RUNNING_EVALUATION --> GENERATING_REPORT
-GENERATING_REPORT --> COMPLETED
-COMPLETED --> POST_EVALUATION
-POST_EVALUATION --> POST_EVALUATION
-```
-
----
-
-# Workflow Ownership
-
-| Workflow Stage | Owner |
-|---|---|
-| Greeting User | Supervisor |
-| File Collection | Supervisor |
-| File Classification | File Intake & Discovery |
-| Sheet Classification | File Intake & Discovery |
-| Criteria Extraction | Criteria Processing |
-| Evaluation Configuration | Evaluation Configuration |
-| Supplier Extraction | Supplier Processing |
-| Questionnaire Validation | Evaluation Engine |
-| Canonical Mapping | Evaluation Engine |
-| Knockout Evaluation | Evaluation Engine |
-| Qualitative Scoring | Evaluation Engine |
-| Weighted Score Calculation | Evaluation Engine |
-| Supplier Ranking | Evaluation Engine |
-| Recommendation Generation | Evaluation Engine |
-| Report Generation | Report Generator |
-| Post-Evaluation Analysis | Supervisor + Q&A |
-
-Ownership shall never overlap.
-
----
-
-# Module Communication
-
-Every module exchanges information through documented Flow Variables.
-
-The following core objects are shared:
-
-```text
-flow.fileIntake
-flow.criteria
-flow.evaluationConfiguration
-flow.suppliers
-flow.validationResult
-flow.canonicalQuestionMap
-flow.knockoutResult
-flow.scoringResult
-flow.weightedScores
-flow.rankingResult
-flow.evaluationResult
-flow.report
-flow.conversationState
-```
-
-Each has exactly one producer.
-
----
-
-# Design Constraints
-
-## Zero-Template User Experience
-
-The external user experience shall not depend on prescribed workbook names, sheet names or column names.
-
-## Internal Schema Discipline
-
-Once information enters downstream processing, it shall conform to documented internal contracts.
-
-## Confidence-Aware Automation
-
-Material classification and mapping uncertainty shall be retained and shall not silently propagate into procurement decisions.
-
-## Human Oversight
-
-Human confirmation shall be required for material ambiguity, not ordinary formatting differences.
-
-## Deterministic Evaluation
-
-Validation, calculations, weighting and ranking shall remain deterministic.
-
-## Source Preservation
-
-Original source information shall remain immutable and traceable.
+# Architectural Invariants
+
+1. One Master Deep Agent.
+2. Maximum three direct specialist sub-agents.
+3. Specialist responsibilities do not overlap.
+4. Human confirmation precedes the first evaluation run.
+5. Confirmed configuration is frozen for the run.
+6. Knockouts are executed only from confirmed rules.
+7. LLMs do not own arithmetic, weighting or ranking.
+8. Source responses are preserved verbatim during extraction.
+9. Every material result retains provenance/evidence.
+10. Every shared object has one producer.
+11. Report generation cannot change business results.
+12. Scenario changes preserve the original run.
 
 ---
 
 # Summary
 
-Version 1.1 introduces File Intake & Discovery as the controlled abstraction layer between flexible user-provided files and the strict internal procurement evaluation model.
-
-This allows the agent to be deployed to floor users without requiring them to learn internal workbook conventions while preserving the original architecture's modularity, explainability, determinism and auditability.
+The architecture is a controlled combination of agentic orchestration and deterministic procurement processing. The Master Deep Agent handles flexible planning and reasoning; three bounded specialists perform domain tasks; the human evaluator governs material rules; and deterministic processing produces reproducible evaluation outcomes.
