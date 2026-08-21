@@ -19,32 +19,50 @@ The architecture uses Flow Variables to separate source discovery, human-confirm
 # Core Lifecycle
 
 ```mermaid
-flowchart LR
+flowchart TD
+    FILES[Uploaded Files] --> FI[flow.fileIntake]
+    FI --> CRIT[flow.criteria]
+    FI --> SUP[flow.suppliers]
+    CRIT --> CLAR[flow.clarificationPackage]
+    SUP --> CLAR
+    CLAR --> HUMAN[Human Confirmation]
+    HUMAN --> CFG[flow.evaluationConfiguration]
 
-FILES --> fileIntake
-fileIntake --> criteria
-fileIntake --> suppliers
-criteria --> clarificationPackage
-suppliers --> clarificationPackage
-clarificationPackage --> evaluationConfiguration
-evaluationConfiguration --> validationResult
-criteria --> validationResult
-suppliers --> validationResult
-validationResult --> canonicalQuestionMap
-criteria --> canonicalQuestionMap
-suppliers --> canonicalQuestionMap
-evaluationConfiguration --> canonicalQuestionMap
-canonicalQuestionMap --> knockoutResult
-canonicalQuestionMap --> scoringResult
-evaluationConfiguration --> knockoutResult
-knockoutResult --> scoringResult
-scoringResult --> weightedScores
-evaluationConfiguration --> weightedScores
-weightedScores --> rankingResult
-knockoutResult --> rankingResult
-rankingResult --> evaluationResult
-evaluationResult --> report
-evaluationResult --> conversationState
+    CRIT --> VAL[flow.validationResult]
+    SUP --> VAL
+    CFG --> VAL
+
+    VAL --> CAN[flow.canonicalQuestionMap]
+    CRIT --> CAN
+    SUP --> CAN
+    CFG --> CAN
+
+    CAN --> KO[flow.knockoutResult]
+    CFG --> KO
+    CAN --> SCORE[flow.scoringResult]
+    CFG --> SCORE
+
+    KO --> SCOREVAL[Deterministic Score Validation]
+    SCORE --> SCOREVAL
+    CFG --> SCOREVAL
+
+    SCOREVAL --> WS[flow.weightedScores]
+    WS --> RANK[flow.rankingResult]
+    KO --> RANK
+
+    RANK --> RESULT[flow.evaluationResult]
+    KO --> RESULT
+    SCORE --> RESULT
+
+    RESULT --> REPORT[flow.report]
+    RESULT --> QA[Post-Evaluation Q&A]
+    QA -->|Explain / compare| RESULT
+    QA -->|Approved rule / weight change| SCEN[flow.evaluationScenario]
+    SCEN --> CFG2[New flow.evaluationConfiguration version]
+    CFG2 --> VAL
+
+    KO -. ambiguous .-> HUMAN
+    VAL -. material issue .-> HUMAN
 ```
 
 ---
