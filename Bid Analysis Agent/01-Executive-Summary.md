@@ -1,8 +1,8 @@
 # 01. Executive Summary
 
-**Document Version:** 0.2
+**Document Version:** 1.2
 
-**Status:** Updated for Floor-User UX
+**Status:** Updated for Deep Agent Architecture + Human-in-the-Loop Configuration
 
 **Parent Document:** Software Design Specification (SDS)
 
@@ -12,29 +12,42 @@
 
 The RFP Qualitative Evaluation Agent is an enterprise-grade AI application designed to automate the qualitative evaluation of supplier responses during strategic sourcing and Request for Proposal (RFP) events.
 
-The solution is being developed using **GEP Quantum Intelligence Studio (QI Studio)** and follows a modular, explainable, production-oriented architecture.
+The solution is developed using **GEP Quantum Intelligence Studio (QI Studio)** and uses a **Master Deep Agent with three specialist sub-agents** to provide adaptive planning, delegation, evidence reconciliation and procurement analysis while preserving deterministic decision logic.
 
-A key Version 1.1 enhancement is a **low-friction, zero-template user experience**. Floor users should be able to upload the Excel files they already have without being required to understand internal workbook templates, filenames, sheet names or column conventions.
+Version 1.2 introduces a controlled **Bid Understanding & Human Confirmation Gate**. The agent first interprets the uploaded RFP/evaluation material and supplier submissions, creates a structured clarification package for the evaluator, and waits for human confirmation before the evaluation configuration is frozen. Knockout requirements are proposed by the agent where detectable, but the human evaluator confirms, modifies or adds the knockout requirements and acceptance conditions before evaluation begins.
 
-The system uses a File Intake and Discovery layer to interpret uploaded workbooks, identify evaluation criteria and supplier submissions, inspect workbook structures, detect ambiguity and normalize the information into strict internal contracts.
-
-The system therefore combines:
+The solution therefore combines:
 
 ```text
 Flexible User Inputs
         ↓
-File Intelligence
+Master Deep Agent Discovery & Planning
         ↓
-Structured Normalization
+Specialist Parallel / Sequential Analysis
         ↓
-Deterministic Evaluation
+Bid Understanding + Clarification Package
         ↓
-Explainable Results
+Human Confirmation + Knockout Configuration
+        ↓
+Frozen Evaluation Configuration
+        ↓
+Deterministic Validation / Rules / Scoring / Ranking
+        ↓
+Master Challenge + Procurement Synthesis
+        ↓
+Consultant-Ready Excel Report
+        ↓
+Post-Evaluation Q&A / Re-weighting / Re-ranking
 ```
 
-Rather than generating simple summaries, the system extracts supplier responses, aligns them against evaluation criteria, applies deterministic business rules, performs explainable qualitative scoring, ranks suppliers, generates consultant-ready reports and continues supporting procurement teams through conversational post-evaluation analysis.
+The system is explicitly designed so that:
 
-The system augments procurement consultants rather than replacing human judgement. Final sourcing decisions remain with the evaluation committee.
+- LLMs handle semantic interpretation, evidence analysis and qualitative judgement.
+- Deterministic processing owns validation, knockout rule execution, arithmetic, weighting and ranking.
+- Human evaluators confirm material business rules before the system makes a procurement evaluation.
+- Source evidence and provenance remain traceable throughout the workflow.
+
+The solution augments procurement consultants rather than replacing human judgement. Final sourcing decisions remain with the evaluation committee.
 
 ---
 
@@ -57,6 +70,7 @@ The solution therefore addresses both problems:
 
 1. Reduce manual evaluation effort.
 2. Remove unnecessary formatting and file-preparation burden from users.
+3. Preserve human control over material evaluation rules, especially knockout requirements.
 
 ---
 
@@ -73,6 +87,7 @@ The system should:
 - Accept practical real-world Excel inputs
 - Generate standardized reports
 - Support interactive consultant workflows
+- Make material evaluation configuration explicit and human-approved
 
 ---
 
@@ -85,14 +100,19 @@ The system should:
 - Identify evaluation criteria and supplier submissions automatically where possible.
 - Normalize evaluation criteria.
 - Normalize supplier responses.
+- Generate a bid understanding / clarification package before evaluation.
+- Capture human confirmation and corrections to the discovered evaluation framework.
+- Capture human-confirmed knockout requirements and acceptance conditions.
+- Freeze the evaluation configuration for an evaluation run.
 - Validate structural compatibility.
 - Build a unified canonical evaluation model.
 - Apply deterministic knockout evaluation.
 - Perform explainable qualitative scoring.
 - Calculate weighted supplier scores.
-- Rank suppliers.
-- Generate consultant-ready Excel reports.
-- Support post-evaluation conversational analysis.
+- Rank suppliers deterministically.
+- Generate a standardized consultant-ready Excel report.
+- Support post-evaluation question answering.
+- Support approved re-weighting and re-ranking scenarios without overwriting the original evaluation configuration.
 
 ## Technical Goals
 
@@ -109,12 +129,13 @@ The solution shall be:
 - Observable
 - Token efficient
 - Robust to reasonable Excel structural variation
+- Controlled against unsupported autonomous rule changes
 
 ---
 
 # Scope
 
-Version 1.1 focuses on qualitative RFP evaluation using reasonably structured Excel inputs.
+Version 1.2 focuses on qualitative RFP evaluation using reasonably structured Excel inputs.
 
 Supported capabilities include:
 
@@ -122,6 +143,9 @@ Supported capabilities include:
 - File and sheet classification
 - Evaluation criteria extraction
 - Supplier response extraction
+- Bid understanding generation
+- Human confirmation / correction
+- Knockout configuration
 - Structural validation
 - Canonical mapping
 - Knockout evaluation
@@ -129,13 +153,14 @@ Supported capabilities include:
 - Weighted ranking
 - Excel report generation
 - Post-evaluation question answering
-- Re-weighting and re-ranking
+- Approved re-weighting and re-ranking
+- Evidence-based procurement synthesis
 
 ---
 
 # Out of Scope
 
-The following remain intentionally excluded from Version 1.1 unless separately approved:
+The following remain intentionally excluded unless separately approved:
 
 - OCR
 - PDF extraction
@@ -144,7 +169,7 @@ The following remain intentionally excluded from Version 1.1 unless separately a
 - Live ERP integration
 - Supplier portals
 - Automatic sourcing event creation
-- Autonomous award recommendations
+- Autonomous award execution
 - Contract generation
 - Purchase order creation
 
@@ -184,23 +209,48 @@ Users provide available files rather than conforming to internal templates.
 
 ## 3. Progressive Disclosure
 
-The system infers information where reliable and asks only for material clarification.
+The system first discovers and presents what it understands. Human clarification is concentrated into a configuration gate before evaluation rather than scattered across the workflow.
 
-## 4. Deterministic Processing
+## 4. Deep Agent Orchestration
 
-Validation, weighting, arithmetic and ranking remain deterministic.
+The Master Deep Agent plans work, selects specialist sub-agents, exploits parallelism where tasks are independent, manages dependencies, performs reconciliation and requests targeted re-analysis when evidence is insufficient.
 
-## 5. Explainable AI
+## 5. Deterministic Processing
 
-Every material evaluation decision is traceable to evidence and rules.
+Validation, knockout rule execution, arithmetic, weighting and ranking remain deterministic.
 
-## 6. Modular Architecture
+## 6. Human-Confirmed Business Rules
 
-Each component performs one responsibility and communicates through explicit contracts.
+The agent may identify candidate knockout requirements and scoring assumptions, but the evaluation configuration is not frozen until the human evaluator confirms or modifies the material business rules.
 
-## 7. Conversation-Driven Workflow
+## 7. Explainable AI
 
-The Supervisor maintains continuity before, during and after evaluation.
+Every material evaluation decision is traceable to source evidence, evaluation configuration and deterministic outcomes.
+
+## 8. Modular Architecture
+
+The Deep Agent owns orchestration; specialist agents own semantic sub-tasks; deterministic processing owns business rules and calculations; the report layer owns presentation only.
+
+## 9. Conversation-Driven Workflow
+
+The system maintains continuity before, during and after evaluation.
+
+---
+
+# Output Report Contract
+
+The standard Excel report shall contain four primary tabs based on the approved reference workbook design:
+
+1. **Executive Summary** — decision-maker view, supplier ranking/status, section-level comparison and recommendation.
+2. **Supplier Profiles** — supplier-by-supplier summary, strengths, weaknesses and section-level score breakdown.
+3. **Q&A Scorecard** — detailed question-by-question supplier responses, scores and evaluator comments, preserving source-response traceability.
+4. **Score Legend** — scoring methodology and definitions actually used for the evaluation run.
+
+Formatting shall follow the approved report reference design, including its visual hierarchy, merged section bands, supplier headers, wrapped long-form text, score presentation, strengths/weaknesses layout and print-friendly structure.
+
+The report generator shall dynamically scale the layout to the number of suppliers while preserving the reference design logic.
+
+The report shall display knockout / qualification status prominently and shall not state that an LLM-domain benchmark was used unless that methodology was actually approved for the run.
 
 ---
 
@@ -212,6 +262,12 @@ The project will be considered successful when it can:
 
 ✓ Identify evaluation criteria and supplier submissions in common workbook variations.
 
+✓ Produce a clear bid understanding package before evaluation.
+
+✓ Obtain human confirmation of material evaluation configuration.
+
+✓ Capture and apply human-confirmed knockout requirements.
+
 ✓ Ask targeted clarification questions only when required.
 
 ✓ Extract evaluation criteria accurately.
@@ -220,15 +276,17 @@ The project will be considered successful when it can:
 
 ✓ Validate questionnaire consistency.
 
-✓ Detect knockout failures correctly.
+✓ Detect knockout outcomes correctly using configured acceptance conditions.
 
 ✓ Produce explainable qualitative scores.
 
-✓ Generate accurate weighted rankings.
+✓ Generate accurate deterministic weighted rankings.
 
-✓ Produce consultant-ready Excel reports.
+✓ Produce the four-tab consultant-ready Excel report.
 
-✓ Support conversational post-evaluation analysis.
+✓ Support conversational post-evaluation analysis and approved scenario re-ranking.
+
+✓ Preserve auditability across source evidence, human-confirmed configuration and deterministic results.
 
 ---
 
@@ -246,6 +304,7 @@ Implementation is expected to deliver:
 - Improved consultant productivity
 - Higher adoption by floor users
 - Higher confidence in supplier evaluation decisions
+- Clearer governance over mandatory supplier requirements
 
 ---
 
@@ -253,4 +312,4 @@ Implementation is expected to deliver:
 
 This chapter establishes the updated business context for the solution.
 
-Subsequent chapters define the requirements, architecture, state machine, data flow, QI Studio implementation, Flow Variables and JSON contracts required to deliver the Version 1.1 experience.
+Subsequent chapters define the requirements, architecture, state machine, data flow, QI Studio implementation, Flow Variables and JSON contracts required to deliver the Version 1.2 experience.
