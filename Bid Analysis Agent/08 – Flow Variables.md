@@ -1,73 +1,71 @@
 # 08. Flow Variables
 
-**Document Version:** 1.2
+**Document Version:** 1.3
 
-**Status:** Deep Agent + HITL Data Contract Baseline
+**Status:** Deep Agent + GEP Knowledge + HITL Data Contract Baseline
 
-**Parent Document:** Software Design Specification (SDS)
+## Purpose
 
----
+Flow Variables separate source discovery, GEP domain context, human-confirmed configuration, semantic evaluation, deterministic processing and reporting.
 
-# Purpose
-
-This document defines the shared Flow Variables for the RFP Qualitative Bid Analysis Agent.
-
-The architecture uses Flow Variables to separate source discovery, human-confirmed configuration, deterministic evaluation and reporting.
-
----
-
-# Core Lifecycle
+## Core Lifecycle
 
 ```mermaid
 flowchart TD
     FILES[Uploaded Files] --> FI[flow.fileIntake]
     FI --> CRIT[flow.criteria]
     FI --> SUP[flow.suppliers]
+
+    KL[GEP Knowledge Library Tools] --> KC[flow.knowledgeContext]
+    KC --> CRIT
+    KC --> EVALCTX[Evaluation Context]
+    KC --> MASTER[Master Context]
+
     CRIT --> CLAR[flow.clarificationPackage]
     SUP --> CLAR
+    KC --> CLAR
     CLAR --> HUMAN[Human Confirmation]
     HUMAN --> CFG[flow.evaluationConfiguration]
 
     CRIT --> VAL[flow.validationResult]
     SUP --> VAL
     CFG --> VAL
-
     VAL --> CAN[flow.canonicalQuestionMap]
     CRIT --> CAN
     SUP --> CAN
     CFG --> CAN
 
-    CAN --> KO[flow.knockoutResult]
-    CFG --> KO
     CAN --> SCORE[flow.scoringResult]
     CFG --> SCORE
+    KC --> SCORE
+
+    CAN --> KO[flow.knockoutResult]
+    CFG --> KO
 
     KO --> SCOREVAL[Deterministic Score Validation]
     SCORE --> SCOREVAL
     CFG --> SCOREVAL
-
     SCOREVAL --> WS[flow.weightedScores]
     WS --> RANK[flow.rankingResult]
     KO --> RANK
 
     RANK --> RESULT[flow.evaluationResult]
-    KO --> RESULT
     SCORE --> RESULT
+    KO --> RESULT
+    KC --> RESULT
 
     RESULT --> REPORT[flow.report]
     RESULT --> QA[Post-Evaluation Q&A]
     QA -->|Explain / compare| RESULT
-    QA -->|Approved rule / weight change| SCEN[flow.evaluationScenario]
-    SCEN --> CFG2[New flow.evaluationConfiguration version]
+    QA -->|Approved change| SCEN[flow.evaluationScenario]
+    SCEN --> CFG2[New Evaluation Configuration]
     CFG2 --> VAL
 
     KO -. ambiguous .-> HUMAN
     VAL -. material issue .-> HUMAN
 ```
 
----
-
-# Flow Variable Inventory
+## Flow Variable Inventory
 
 | Variable | Producer | Main consumers |
 |---|---|---|
@@ -75,155 +73,41 @@ flowchart TD
 | flow.fileIntake | Discovery | Master, Criteria, Supplier |
 | flow.criteria | Criteria Specialist | Master, Validation, Canonical Mapping |
 | flow.suppliers | Supplier Specialist | Master, Validation, Canonical Mapping |
-| flow.clarificationPackage | Master | Human confirmation workflow |
-| flow.evaluationConfiguration | Human confirmation workflow | Validation, Canonical Mapping, Knockout, Scoring, Weighting |
+| flow.knowledgeContext | Knowledge tools / Master | Master, Criteria, Evaluation, clarification |
+| flow.clarificationPackage | Master | Human confirmation |
+| flow.evaluationConfiguration | Human confirmation / Master | Validation, Canonical Mapping, Knockout, Scoring, Weighting |
 | flow.validationResult | Validation | Master, Canonical Mapping |
 | flow.canonicalQuestionMap | Canonical Mapping | Knockout, Scoring |
-| flow.knockoutResult | Knockout Script | Scoring, Ranking, Result Builder |
+| flow.knockoutResult | Knockout Script | Result Builder, Ranking |
 | flow.scoringResult | Evaluation Specialist | Score Calculation |
 | flow.weightedScores | Weighted Calculation | Ranking, Result Builder |
 | flow.rankingResult | Ranking Script | Result Builder |
 | flow.evaluationResult | Result Builder | Master, Report, Q&A |
 | flow.report | Report Generator | Master, Q&A |
-| flow.evaluationScenario | Scenario Manager / Master | Master, Result Builder, Q&A |
+| flow.evaluationScenario | Scenario workflow | Master, Result Builder, Q&A |
 
----
+## flow.knowledgeContext
 
-# flow.conversationState
+Purpose: store the relevant GEP internal knowledge retrieved for the current task/run.
 
-Purpose: current workflow state.
+Contains, where available:
 
-Example:
+- knowledge source/file/reference ID
+- category/toolkit name
+- relevant excerpt or structured finding
+- source location
+- retrieval reason
+- relevance
+- methodology/benchmark type
+- confidence
 
-```json
-{
-  "state": "HUMAN_CONFIRMATION",
-  "runId": "RUN-001",
-  "scenarioId": "SCN-001"
-}
-```
+Knowledge context is **not supplier evidence** and is not an evaluation rule by itself.
 
-Key states:
+It may inform semantic interpretation, benchmarking and rationale. Material business-rule changes require human confirmation.
 
-```text
-INITIAL
-WAITING_FOR_FILES
-DISCOVERING
-PLANNING
-DISCOVERY_SPECIALISTS
-BUILDING_UNDERSTANDING
-CLARIFICATION_PACKAGE
-HUMAN_CONFIRMATION
-KNOCKOUT_CONFIGURATION
-CONFIGURATION_VALIDATION
-EVALUATION_READY
-EVALUATING
-MASTER_QC
-TARGETED_REANALYSIS
-DETERMINISTIC_PROCESSING
-HUMAN_EXCEPTION
-SYNTHESIS
-GENERATING_REPORT
-COMPLETED
-POST_EVALUATION
-SCENARIO_REEVALUATION
-ERROR
-```
+## flow.evaluationConfiguration
 
----
-
-# flow.fileIntake
-
-Purpose: structured understanding of uploaded files/sheets.
-
-Required concepts:
-
-- intakeId
-- files[]
-- fileRole
-- classificationConfidence
-- classificationReason
-- supplierName
-- sheets[]
-- materialAmbiguities[]
-- missingInformation[]
-- provenance
-
-Unknown values are `null`, not fabricated.
-
-Immutable after acceptance for the intake set.
-
----
-
-# flow.criteria
-
-Purpose: normalized source evaluation framework.
-
-Contains:
-
-- metadata
-- sections
-- questions
-- stable question IDs
-- source numbering
-- weights
-- scoring rubric
-- guidance
-- knockout candidates
-- provenance
-- inference indicators
-
-Immutable source object.
-
----
-
-# flow.suppliers
-
-Purpose: normalized supplier response/evidence objects.
-
-Contains:
-
-- supplierId
-- supplierName
-- sourceFiles
-- sections
-- question mappings
-- original answer text
-- answered flag
-- evidence/provenance
-- mapping confidence
-
-Supplier response text is immutable after extraction.
-
----
-
-# flow.clarificationPackage
-
-Purpose: human-readable and structured statement of the agent's current understanding before evaluation.
-
-Contains:
-
-- identified files and roles
-- supplier identities
-- evaluation sections/questions
-- scoring scale/rubric detected
-- weights detected
-- candidate knockouts
-- proposed acceptance conditions
-- ambiguities
-- missing information
-- explicit/inferred indicators
-- confirmation items
-
-This object is generated by the Master and presented to the human evaluator.
-
----
-
-# flow.evaluationConfiguration
-
-Purpose: authoritative human-confirmed evaluation rules.
-
-Example structure:
+Authoritative business-rule object for one run.
 
 ```json
 {
@@ -231,22 +115,16 @@ Example structure:
   "version": 1,
   "approved": true,
   "approvedBy": "human",
-  "approvedAt": "",
-  "scoring": {
-    "scaleMin": 0,
-    "scaleMax": 5,
-    "rubric": []
-  },
+  "scoring": {"scaleMin": 0, "scaleMax": 5, "rubric": []},
   "weights": [],
   "knockoutRules": [],
   "excludedQuestions": [],
   "includedSections": [],
   "specialInstructions": [],
-  "sourceAssumptions": []
+  "knowledgePolicy": "context_only",
+  "confirmationNotes": []
 }
 ```
-
-The object is frozen after approval for that run.
 
 If no knockouts are approved:
 
@@ -254,193 +132,39 @@ If no knockouts are approved:
 "knockoutRules": []
 ```
 
----
+The object is frozen after approval. A changed rule/weight creates a new scenario.
 
-# flow.validationResult
+## flow.scoringResult
 
-Contains:
-
-- valid
-- errors[]
-- warnings[]
-- missingQuestions[]
-- extraQuestions[]
-- mappingIssues[]
-- configurationIssues[]
-- sourceIssues[]
-
-A material error prevents deterministic evaluation.
-
----
-
-# flow.canonicalQuestionMap
-
-Purpose: single normalized representation used downstream.
-
-Each record contains:
-
-- questionId
-- questionNumber
-- section
-- questionText
-- supplierId
-- supplierName
-- supplierAnswer
-- answered
-- confirmed weight
-- scoring rubric
-- confirmed knockout status
-- acceptance condition
-- criteria source
-- supplier source
-- mapping confidence
-
----
-
-# flow.knockoutResult
-
-Contains supplier-level and question-level outcomes.
-
-Possible statuses:
-
-```text
-PASS
-FAIL
-AMBIGUOUS
-NOT_APPLICABLE
-```
-
-Every material outcome includes:
-
-- supplier
-- question/rule ID
-- acceptance condition
-- actual evidence
-- decision
-- reason
-- source reference
-
----
-
-# flow.scoringResult
-
-Contains semantic qualitative assessment.
-
-Each question-level score contains:
+Contains semantic qualitative assessment from the Evaluation Specialist:
 
 - supplier
 - question ID
 - score recommendation
 - max score
 - reasoning
-- evidence
+- supplier evidence
+- relevant GEP context references
 - strengths
 - weaknesses
 - confidence
 
-This is not the authoritative arithmetic result.
+The score recommendation is not the authoritative arithmetic result.
 
----
+## Deterministic Variables
 
-# flow.weightedScores
+`flow.weightedScores` and `flow.rankingResult` are generated only by deterministic processing.
 
-Contains deterministic results:
+No LLM may modify these values directly.
 
-- supplier
-- section scores
-- overall weighted score
-- calculation inputs
-- formula metadata
-- validation status
-
----
-
-# flow.rankingResult
-
-Contains:
-
-- qualified ranks
-- supplier ID/name
-- score
-- qualification status
-- tie handling
-- deterministic ordering information
-
-Disqualified suppliers do not receive a qualified rank.
-
----
-
-# flow.evaluationResult
-
-Contains the complete run:
-
-- run/scenario metadata
-- confirmed configuration reference
-- supplier summaries
-- qualification status
-- knockout results
-- scores
-- rankings
-- strengths
-- weaknesses
-- risks
-- negotiation opportunities
-- recommendations
-- provenance/audit metadata
-
----
-
-# flow.report
-
-Contains:
-
-- reportVersion
-- generatedAt
-- generatedBy
-- reportType
-- tabs
-- downloadReference
-- status
-- sourceRunId
-
-Required tabs:
-
-```text
-Executive Summary
-Supplier Profiles
-Q&A Scorecard
-Score Legend
-```
-
----
-
-# flow.evaluationScenario
-
-Purpose: preserve scenario lineage for approved post-evaluation changes.
-
-Example:
-
-```json
-{
-  "scenarioId": "SCN-002",
-  "parentScenarioId": "SCN-001",
-  "changeType": "WEIGHT_CHANGE",
-  "changes": [],
-  "createdAt": "",
-  "status": "READY"
-}
-```
-
-The original scenario is never overwritten.
-
----
-
-# Ownership Rules
+## Ownership Rules
 
 1. Every Flow Variable has exactly one producer.
 2. Consumers treat shared objects as read-only.
 3. Source data is immutable.
-4. Confirmed configuration is immutable after freeze.
-5. Scenario changes create new lineage.
-6. Unknown information is represented explicitly.
-7. Material inference retains provenance/confidence.
+4. GEP knowledge context is separate from supplier evidence.
+5. Human-confirmed configuration is immutable after freeze.
+6. Deterministic outputs are immutable after generation.
+7. Unknown information is explicit.
+8. Material inference retains provenance/confidence.
+9. Scenario changes create new lineage.
