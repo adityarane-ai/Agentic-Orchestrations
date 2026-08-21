@@ -1,8 +1,8 @@
 # 07. QI Studio Orchestration Blueprint
 
-**Document Version:** 1.1
+**Document Version:** 1.2
 
-**Status:** Implementation Baseline Updated
+**Status:** Implementation Baseline — Deep Agent Architecture
 
 **Parent Document:** Software Design Specification (SDS)
 
@@ -10,623 +10,321 @@
 
 # Purpose
 
-This document defines the implementation blueprint of the RFP Qualitative Evaluation Agent within GEP Quantum Intelligence Studio (QI Studio).
+This document defines the implementable QI Studio architecture for the RFP Qualitative Bid Analysis Agent.
 
-Version 1.1 adds File Intake & Discovery so users can upload available Excel files without knowing internal templates.
-
-The blueprint remains intentionally modular and testable. Each node has a single responsibility.
+The canvas should remain compact: the primary orchestration intelligence lives inside one Master Deep Agent. The Master has three direct specialist sub-agents available and dynamically delegates work. Deterministic processing is used for validation, confirmed knockout rules, calculations and ranking.
 
 ---
 
-# Design Objectives
-
-- Low-friction user experience
-- Simple orchestration
-- Single responsibility per node
-- Deterministic execution
-- Minimal LLM usage
-- Easy debugging
-- Easy maintenance
-- Reusable nodes
-- Enterprise scalability
-- Explicit data contracts
-- Confidence-aware automation
-
----
-
-# High-Level Orchestration
+# Canvas-Level Architecture
 
 ```mermaid
-flowchart TD
+flowchart LR
 
-START((START))
-SUPERVISOR[Supervisor Agent]
-INTAKE[File Intake & Discovery]
-ASSESS[Assess Input Completeness]
-CRITERIA[Extract Evaluation Criteria]
-CONFIG[Evaluation Configuration]
-SUPPLIER[Extract Supplier Submission]
-VALIDATE[Validate Questionnaire Structure]
-CANONICAL[Build Canonical Question Map]
-KNOCKOUT[Knockout Evaluation]
-SCORING[Qualitative Scoring]
-WEIGHT[Weighted Score Calculation]
-RANK[Supplier Ranking]
-RECOMMEND[Recommendation Generation]
-REPORT[Generate Excel Report]
-OUTPUT((OUTPUT))
-
-START --> SUPERVISOR
-SUPERVISOR --> INTAKE
-INTAKE --> ASSESS
-ASSESS --> CRITERIA
-ASSESS --> SUPPLIER
-ASSESS --> SUPERVISOR
-CRITERIA --> CONFIG
-CONFIG --> SUPERVISOR
-SUPPLIER --> VALIDATE
-VALIDATE --> CANONICAL
-CANONICAL --> KNOCKOUT
-KNOCKOUT --> SCORING
-SCORING --> WEIGHT
-WEIGHT --> RANK
-RANK --> RECOMMEND
-RECOMMEND --> REPORT
-REPORT --> SUPERVISOR
-SUPERVISOR --> OUTPUT
+START((START)) --> MASTER[MASTER DEEP AGENT<br/>RFP QUALITATIVE BID ANALYSIS]
+MASTER --> DET[Deterministic Processing / Script Nodes]
+DET --> OUTPUT((OUTPUT))
 ```
 
----
+The Master Deep Agent internally orchestrates:
 
-# Node Inventory
+```text
+Specialist 1 — RFP & Evaluation Criteria Analyst
+Specialist 2 — Supplier Response & Evidence Analyst
+Specialist 3 — Qualitative Evaluation & Comparison Analyst
+```
 
-| ID | Node | Type |
-|---|---|---|
-| N-001 | START | Start |
-| N-002 | Supervisor | Agent |
-| N-003 | File Intake & Discovery | Agent |
-| N-004 | Assess Input Completeness | Script / Rule |
-| N-005 | Extract Evaluation Criteria | Agent |
-| N-006 | Evaluation Configuration | Agent |
-| N-007 | Extract Supplier Submission | Agent |
-| N-008 | Validate Questionnaire Structure | Script |
-| N-009 | Build Canonical Question Map | Script |
-| N-010 | Knockout Evaluation | Script |
-| N-011 | Qualitative Scoring | Agent |
-| N-012 | Weighted Score Calculation | Script |
-| N-013 | Supplier Ranking | Script |
-| N-014 | Recommendation Generation | Agent / Script depending implementation |
-| N-015 | Generate Excel Report | Agent |
-| N-016 | OUTPUT | Output |
+No fourth direct specialist is required for V1.
 
 ---
 
-# Node Execution Order
+# Deep Agent Responsibilities
+
+The Master Deep Agent shall:
+
+- understand user intent
+- plan work
+- inspect available tools/capabilities when necessary
+- delegate to the appropriate specialist(s)
+- use parallel execution for independent work where available
+- respect task dependencies
+- synthesize discovery results
+- generate the Bid Clarification Package
+- obtain human confirmation
+- continue only after configuration approval
+- challenge specialist outputs
+- request targeted re-analysis
+- produce final procurement synthesis
+
+The Master shall not silently change a confirmed evaluation configuration.
+
+---
+
+# Specialist 1 — RFP & Evaluation Criteria Analyst
+
+### Mission
+Determine what the RFP/evaluation framework requires.
+
+### Responsibilities
+
+- identify sections
+- identify questions/requirements
+- preserve numbering
+- extract weights
+- extract scoring rubric
+- identify mandatory language
+- identify candidate knockout requirements
+- propose acceptance-condition candidates
+- preserve provenance
+- distinguish explicit facts from inference
+
+### Must not
+
+- evaluate suppliers
+- score supplier responses
+- rank suppliers
+- invent mandatory rules
+
+---
+
+# Specialist 2 — Supplier Response & Evidence Analyst
+
+### Mission
+Determine what each supplier actually submitted.
+
+### Responsibilities
+
+- identify supplier
+- identify response boundaries
+- extract response text verbatim
+- preserve section/question mapping
+- capture evidence/provenance
+- detect missing responses
+- detect duplicate supplier files
+- report mapping confidence
+
+### Must not
+
+- rewrite source responses
+- score responses
+- rank suppliers
+- create knockout rules
+
+---
+
+# Specialist 3 — Qualitative Evaluation & Comparison Analyst
+
+### Mission
+Evaluate supplier responses against the **confirmed** evaluation framework.
+
+### Responsibilities
+
+- assess response quality
+- apply the approved rubric semantically
+- recommend criterion-level scores
+- provide evidence and rationale
+- identify strengths/weaknesses
+- identify risks/gaps
+- compare suppliers
+
+### Must not
+
+- change the confirmed rubric
+- change weights
+- execute knockout rules
+- perform authoritative arithmetic/ranking
+
+---
+
+# Human-in-the-Loop Gate
+
+The Master shall produce a **Bid Clarification Package** before the first evaluation run.
+
+The package must communicate:
+
+- what files were identified
+- what each file appears to represent
+- suppliers identified
+- evaluation sections/questions
+- scoring scale/rubric detected
+- weights detected
+- candidate knockouts
+- proposed acceptance conditions
+- ambiguities
+- missing information
+- explicit vs inferred information
+
+The user can:
+
+- confirm
+- correct
+- add information
+- add/remove/modify knockout requirements
+- define/modify acceptance conditions
+- approve the configuration
+
+The Master must not start evaluation until material configuration is approved.
+
+---
+
+# Evaluation Configuration Contract
+
+The confirmed configuration becomes:
+
+```text
+flow.evaluationConfiguration
+```
+
+It is frozen for the run.
+
+A new configuration after evaluation creates a new scenario/version.
+
+---
+
+# Deterministic Node Inventory
+
+| ID | Node | Type | Responsibility |
+|---|---|---|---|
+| D-001 | Configuration Validation | Script | Validate confirmed rules/configuration |
+| D-002 | Questionnaire Validation | Script | Validate structural coverage |
+| D-003 | Canonical Mapping | Script | Build canonical model |
+| D-004 | Knockout Evaluation | Script | Execute confirmed acceptance conditions |
+| D-005 | Score Validation / Calculation | Script | Validate score ranges and calculate totals |
+| D-006 | Weighted Score Calculation | Script | Apply weights |
+| D-007 | Supplier Ranking | Script | Rank qualified suppliers |
+| D-008 | Evaluation Result Builder | Script | Assemble deterministic result contract |
+| D-009 | Report Export | Export capability | Render four-tab workbook |
+
+---
+
+# Recommended Canvas / Execution Pattern
 
 ```text
 START
-↓
-Supervisor
-↓
-File Intake & Discovery
-↓
-Assess Input Completeness
-↓
-┌─────────────────────────────────────┐
-│ Criteria available?                 │
-│ Supplier data available?            │
-│ Material ambiguity?                 │
-└─────────────────────────────────────┘
-↓
-Criteria Processing / Clarification / Supplier Processing
-↓
-Evaluation Configuration
-↓
-Supplier Processing
-↓
-Validate Questionnaire Structure
-↓
-Build Canonical Question Map
-↓
-Knockout Evaluation
-↓
-Qualitative Scoring
-↓
-Weighted Score Calculation
-↓
-Supplier Ranking
-↓
-Recommendation Generation
-↓
-Generate Excel Report
-↓
-Supervisor
-↓
-OUTPUT
+  ↓
+MASTER DEEP AGENT
+  │
+  ├── Discovery / planning
+  │     ├── Criteria Specialist
+  │     └── Supplier Specialist
+  │
+  ├── Bid Understanding
+  │
+  ├── Human Confirmation
+  │     └── Knockout Configuration
+  │
+  ├── Evaluation Specialist
+  │
+  ├── Master Challenge / QC
+  │
+  └── Handoff to deterministic processing
+              ↓
+      Configuration Validation
+              ↓
+      Questionnaire Validation
+              ↓
+      Canonical Mapping
+              ↓
+      Confirmed Knockout Evaluation
+              ↓
+      Score Validation / Calculation
+              ↓
+      Weighted Calculation
+              ↓
+      Ranking
+              ↓
+      Result Builder
+              ↓
+      Report Export
+              ↓
+            OUTPUT
 ```
 
 ---
 
-# Node Responsibilities
+# Dynamic Delegation Rules
 
-## N-001 START
+The Master should use the following logic:
 
-Accepts user message and uploaded files.
+### Criteria-only request
+Use Criteria Specialist; do not invoke Supplier/Evaluation Specialist unless required.
 
-The start interface shall not require the user to declare file roles.
+### Supplier extraction request
+Use Supplier Specialist.
 
----
+### Full bid analysis
+Use Criteria + Supplier discovery, human confirmation, then Evaluation Specialist.
 
-## N-002 Supervisor
+### Follow-up explanation
+Use stored evaluation state; avoid unnecessary re-extraction.
 
-Responsibilities:
+### Weight-change scenario
+Create new configuration/version and invoke deterministic recalculation.
 
-- Conversation orchestration
-- State management
-- User guidance
-- File intake invocation
-- Clarification
-- Handoffs
-- Result delivery
-- Post-evaluation Q&A routing
-
-The Supervisor does not classify workbook content itself when File Intake & Discovery can perform that responsibility.
-
-Produces:
-
-```text
-flow.conversationState
-```
+### Material ambiguity
+Pause at the human confirmation gate.
 
 ---
 
-## N-003 File Intake & Discovery
+# Tool Governance
 
-Type:
+Tools are capabilities, not agents.
 
-Agent
+The Master or specialist should use:
 
-Purpose:
+- file/attachment capabilities for uploaded inputs
+- document extraction for supported workbook/document formats
+- knowledge/table tools when required
+- export capabilities for final workbook generation
+- system tool discovery only when the required capability is not already available/known
 
-Understand uploaded files before business processing.
-
-Consumes:
-
-```text
-User files
-```
-
-Produces:
-
-```text
-flow.fileIntake
-```
-
-Responsibilities:
-
-- Discover workbook sheets
-- Classify file roles
-- Classify sheet roles
-- Identify supplier names
-- Identify evaluation frameworks
-- Detect combined workbooks
-- Detect supporting documents
-- Record confidence
-- Record ambiguity
-- Preserve provenance
-
-It must not score suppliers.
-
----
-
-## N-004 Assess Input Completeness
-
-Type:
-
-Script / Rule
-
-Purpose:
-
-Determine whether the current session contains sufficient information to proceed.
-
-Inputs:
-
-```text
-flow.fileIntake
-flow.criteria
-flow.evaluationConfiguration
-flow.suppliers
-flow.conversationState
-```
-
-Outputs:
-
-```text
-inputAssessment
-```
-
-Possible outcomes:
-
-```text
-PROCEED_CRITERIA
-PROCEED_SUPPLIERS
-WAIT_FOR_FILES
-CLARIFY
-READY_FOR_EVALUATION
-```
-
-This node must not make semantic interpretations; it uses the structured discovery output and explicit business rules.
-
----
-
-## N-005 Extract Evaluation Criteria
-
-Type:
-
-Agent
-
-Consumes:
-
-```text
-flow.fileIntake
-```
-
-Produces:
-
-```text
-flow.criteria
-```
-
-Responsibilities:
-
-- Extract sections
-- Extract questions/requirements
-- Preserve source numbering
-- Extract weights
-- Extract guidance/rubrics
-- Identify knockout candidates
-- Preserve provenance
-- Distinguish explicit vs inferred values
-
----
-
-## N-006 Evaluation Configuration
-
-Type:
-
-Agent
-
-Consumes:
-
-```text
-flow.criteria
-```
-
-Produces:
-
-```text
-flow.evaluationConfiguration
-```
-
-Responsibilities:
-
-- Review material criteria interpretation
-- Configure weights
-- Configure knockout rules
-- Define acceptance conditions
-- Exclude questions where allowed
-- Obtain approval when required
-
----
-
-## N-007 Extract Supplier Submission
-
-Type:
-
-Agent
-
-Consumes:
-
-```text
-flow.fileIntake
-```
-
-Produces:
-
-```text
-flow.suppliers
-```
-
-Responsibilities:
-
-- Identify supplier
-- Extract responses
-- Preserve wording
-- Preserve section context
-- Preserve source references
-- Detect unanswered questions
-- Support multiple supplier sources
-
-No scoring.
-
----
-
-## N-008 Validate Questionnaire Structure
-
-Type:
-
-Script
-
-Consumes:
-
-```text
-flow.criteria
-flow.suppliers
-```
-
-Produces:
-
-```text
-flow.validationResult
-```
-
-Validation shall distinguish errors from warnings and shall tolerate harmless workbook variation where semantic mapping is reliable.
-
----
-
-## N-009 Build Canonical Question Map
-
-Type:
-
-Script
-
-Consumes:
-
-```text
-flow.criteria
-flow.evaluationConfiguration
-flow.suppliers
-flow.validationResult
-```
-
-Produces:
-
-```text
-flow.canonicalQuestionMap
-```
-
-Purpose:
-
-Create one authoritative representation of each evaluation question/requirement and supplier response.
-
----
-
-## N-010 Knockout Evaluation
-
-Type:
-
-Script
-
-Consumes:
-
-```text
-flow.canonicalQuestionMap
-flow.evaluationConfiguration
-```
-
-Produces:
-
-```text
-flow.knockoutResult
-```
-
-Knockout decisions must use configured acceptance conditions and source evidence. Simple generic keyword matching is not authoritative.
-
----
-
-## N-011 Qualitative Scoring
-
-Type:
-
-Agent
-
-Consumes:
-
-```text
-flow.canonicalQuestionMap
-flow.knockoutResult
-flow.evaluationConfiguration
-```
-
-Produces:
-
-```text
-flow.scoringResult
-```
-
-LLM responsibility is limited to semantic assessment against the approved rubric.
-
----
-
-## N-012 Weighted Score Calculation
-
-Type:
-
-Script
-
-Consumes:
-
-```text
-flow.scoringResult
-flow.evaluationConfiguration
-```
-
-Produces:
-
-```text
-flow.weightedScores
-```
-
-All arithmetic is deterministic.
-
----
-
-## N-013 Supplier Ranking
-
-Type:
-
-Script
-
-Consumes:
-
-```text
-flow.weightedScores
-flow.knockoutResult
-```
-
-Produces:
-
-```text
-flow.rankingResult
-```
-
-Qualified suppliers receive ranks. Disqualified suppliers do not receive a qualified rank.
-
----
-
-## N-014 Recommendation Generation
-
-Purpose:
-
-Generate evidence-based procurement recommendations from structured evaluation results.
-
-The node must not invent supplier facts.
-
----
-
-## N-015 Generate Excel Report
-
-Consumes:
-
-```text
-flow.evaluationResult
-```
-
-Produces:
-
-```text
-flow.report
-```
-
-No scoring or ranking logic exists in this node.
-
----
-
-## N-016 OUTPUT
-
-Returns final results to the user.
-
----
-
-# Node Connections
-
-| From | To |
-|---|---|
-| START | Supervisor |
-| Supervisor | File Intake & Discovery |
-| File Intake & Discovery | Assess Input Completeness |
-| Assess Input Completeness | Extract Evaluation Criteria |
-| Assess Input Completeness | Extract Supplier Submission |
-| Assess Input Completeness | Supervisor / Clarification |
-| Extract Evaluation Criteria | Evaluation Configuration |
-| Evaluation Configuration | Supervisor |
-| Extract Supplier Submission | Validate Questionnaire Structure |
-| Validate Questionnaire Structure | Build Canonical Question Map |
-| Build Canonical Question Map | Knockout Evaluation |
-| Knockout Evaluation | Qualitative Scoring |
-| Qualitative Scoring | Weighted Score Calculation |
-| Weighted Score Calculation | Supplier Ranking |
-| Supplier Ranking | Recommendation Generation |
-| Recommendation Generation | Generate Excel Report |
-| Generate Excel Report | Supervisor |
-| Supervisor | OUTPUT |
-
----
-
-# Retry Strategy
-
-| Node Type | Retry Policy |
-|---|---|
-| File Intake Agent | Retry once, then route to clarification/error |
-| Other Agent | Retry once |
-| Script | No automatic retry; return structured error |
-| Output | No retry |
-| Start | No retry |
+Tool discovery shall not be used as a mandatory step for every request.
 
 ---
 
 # Error Handling
 
-All Agent Nodes shall have error handling enabled.
+Agent failure:
 
-File discovery errors shall identify the affected file.
+- retry once where appropriate
+- if still unsuccessful, isolate the affected task and return a structured recovery path
 
-Criteria extraction errors shall return to the Supervisor.
+Script failure:
 
-Supplier extraction errors shall isolate the affected supplier/file where practical.
+- return structured error
+- do not silently continue with partial deterministic results
 
-Evaluation errors shall return structured validation information.
+Configuration failure:
 
-The Supervisor determines whether to retry, request clarification or request a replacement input.
+- return to human confirmation
 
----
+Ambiguous knockout:
 
-# Variable Ownership
+- return to human confirmation
 
-| Variable | Owner |
-|---|---|
-| flow.conversationState | Supervisor |
-| flow.fileIntake | File Intake & Discovery |
-| flow.criteria | Extract Evaluation Criteria |
-| flow.evaluationConfiguration | Evaluation Configuration |
-| flow.suppliers | Extract Supplier Submission |
-| flow.validationResult | Validate Questionnaire Structure |
-| flow.canonicalQuestionMap | Build Canonical Question Map |
-| flow.knockoutResult | Knockout Evaluation |
-| flow.scoringResult | Qualitative Scoring |
-| flow.weightedScores | Weighted Score Calculation |
-| flow.rankingResult | Supplier Ranking |
-| flow.evaluationResult | Evaluation Result Builder / Evaluation Engine |
-| flow.report | Generate Excel Report |
+Report failure:
 
-Every variable has exactly one producer.
+- retry report generation without rerunning evaluation
 
 ---
 
-# QI Studio Design Rules
+# Implementation Rules
 
-1. Every node has one responsibility.
-2. User-facing file role classification is performed by File Intake & Discovery, not by the user.
-3. Agent nodes perform semantic interpretation only.
-4. Script nodes perform deterministic business logic.
-5. Rule nodes perform routing only.
-6. Flow Variables are the shared communication mechanism.
-7. Source data is preserved and traceable.
-8. Material uncertainty is explicit.
-9. Errors return to controlled recovery paths.
-10. No node should require the user to reformat data when the system can reasonably normalize it.
-11. Structured outputs shall be used wherever applicable.
-12. Every node shall be individually testable before downstream nodes are added.
+1. One Master Deep Agent.
+2. Three direct specialist sub-agents maximum.
+3. Dynamic delegation inside the Master.
+4. Human confirmation is a formal state/gate.
+5. Candidate knockouts are not authoritative until confirmed.
+6. Confirmed rules are executed deterministically.
+7. Arithmetic and ranking are deterministic.
+8. Source responses remain verbatim during extraction.
+9. Specialist outputs are structured and evidence-backed.
+10. Report generation cannot alter evaluation data.
+11. Every deterministic stage returns explicit status/errors.
+12. The architecture should be tested incrementally: Master → Criteria → Supplier → HITL → Evaluation → Deterministic → Report.
 
 ---
 
 # Implementation Freeze
 
-The node names, execution order, responsibilities and ownership defined here constitute the V1.1 implementation baseline.
-
-Changes are permitted where:
-
-- QI Studio limitations prevent implementation.
-- A defect is discovered.
-- Testing demonstrates a better implementation without changing business behaviour.
-- A new business requirement is approved.
+This document is the V1.2 QI Studio implementation baseline. Deviations require a documented platform constraint, defect finding, or approved business requirement.
