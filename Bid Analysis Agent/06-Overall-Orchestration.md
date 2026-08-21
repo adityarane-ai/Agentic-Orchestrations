@@ -1,8 +1,8 @@
 # 06. Overall Orchestration
 
-**Document Version:** 1.1
+**Document Version:** 1.2
 
-**Status:** Architecture Baseline Updated
+**Status:** Implementation Architecture Baseline
 
 **Parent Document:** Software Design Specification (SDS)
 
@@ -10,392 +10,282 @@
 
 # Purpose
 
-This document defines the complete orchestration for the RFP Qualitative Evaluation Agent, including the zero-template user experience.
+This document defines the end-to-end orchestration of the RFP Qualitative Bid Analysis Agent.
 
-The Supervisor owns conversation and workflow state. File Intake & Discovery interprets uploaded files. Specialized modules normalize and evaluate the data.
-
----
-
-# Design Philosophy
-
-## 1. Supervisor Driven
-
-The Supervisor owns the user journey, state management, routing and clarification.
-
-## 2. File-Agnostic Entry
-
-Users upload available files. The system determines their business roles.
-
-## 3. Modular Execution
-
-Each module has exactly one responsibility.
-
-## 4. Explicit Handoffs
-
-Every module receives and returns documented contracts.
-
-## 5. Flow Variable Driven
-
-Shared business data is exchanged through Flow Variables.
-
-## 6. Deterministic Evaluation
-
-The Evaluation Engine remains deterministic except for semantic scoring.
+The Master Deep Agent owns adaptive orchestration. Three direct specialists perform bounded semantic work. A human confirmation gate establishes the evaluation configuration. Deterministic processing executes rules and calculations.
 
 ---
 
-# Complete Orchestration
+# Master Execution Model
 
 ```mermaid
 flowchart TD
 
-Start([START])
-Supervisor[Supervisor Agent]
-Intake[File Intake & Discovery]
-Assess[Assess Input Completeness]
-Clarify[Clarification]
-Criteria[Extract Evaluation Criteria]
-Config[Evaluation Configuration]
-Supplier[Extract Supplier Submission]
-Validate[Validate Questionnaire Structure]
-Canonical[Build Canonical Question Map]
-Knockout[Knockout Evaluation]
-Score[Qualitative Scoring]
-Weight[Weighted Score Calculation]
-Rank[Supplier Ranking]
-Recommend[Recommendation Generation]
-Report[Generate Excel Report]
-QA[Post Evaluation Q&A]
-End([END])
+START([START]) --> M[MASTER DEEP AGENT]
+M --> PLAN[Plan task + dependencies]
+PLAN --> C[Criteria Specialist]
+PLAN --> S[Supplier Specialist]
+C --> B[Build Bid Understanding]
+S --> B
+B --> H[Human Confirmation + Knockout Configuration]
+H --> CFG[Frozen Evaluation Configuration]
+CFG --> V[Deterministic Validation]
+V --> CAN[Canonical Evaluation Model]
+CAN --> E[Evaluation Specialist]
+E --> QC[Master Challenge / QC]
+QC -->|rework| E
+QC -->|accepted| K[Confirmed Knockout Execution]
+K --> KO{Any ambiguous knockout?}
+KO -->|Yes| H
+KO -->|No| SCORE[Deterministic Score Validation + Weighted Calculation]
+SCORE --> RANK[Deterministic Ranking]
+RANK --> SYN[Master Procurement Synthesis]
+SYN --> REPORT[Four-Tab Excel Report]
+REPORT --> OUTPUT([OUTPUT])
 
-Start --> Supervisor
-Supervisor --> Intake
-Intake --> Assess
-Assess --> Clarify
-Clarify --> Assess
-Assess --> Criteria
-Criteria --> Config
-Config --> Supplier
-Assess --> Supplier
-Supplier --> Validate
-Validate --> Canonical
-Canonical --> Knockout
-Knockout --> Score
-Score --> Weight
-Weight --> Rank
-Rank --> Recommend
-Recommend --> Report
-Report --> Supervisor
-Supervisor --> QA
-QA --> Supervisor
-Supervisor --> End
+M -. dynamic delegation .-> E
+M -. targeted re-analysis .-> C
+M -. targeted re-analysis .-> S
 ```
+
+The Master may skip unnecessary specialists for narrow requests and may execute independent discovery tasks in parallel.
 
 ---
 
-# Processing Stages
+# Stage 1 — Start and Intake
 
-| Stage | Owner |
-|---|---|
-| Conversation Initiation | Supervisor |
-| File Intake & Discovery | File Intake & Discovery |
-| Input Completeness Assessment | Supervisor |
-| Clarification | Supervisor |
-| Criteria Preparation | Criteria Processing + Evaluation Configuration |
-| Supplier Preparation | Supplier Processing |
-| Evaluation | Evaluation Engine |
-| Report Generation | Report Generator |
-| Result Delivery | Supervisor |
-| Post-Evaluation Analysis | Supervisor + Q&A |
+The user uploads available RFP/evaluation and supplier files.
+
+No prescribed filenames, sheet names or internal templates are required for V1.
 
 ---
 
-# Stage 1 — Conversation Initiation
+# Stage 2 — Master Planning
 
-Entry condition:
+The Master determines:
 
-```text
-Conversation Started
-```
+- request type
+- required source understanding
+- required specialists
+- dependencies
+- tools required
+- whether work can run in parallel
+- required output
 
-Supervisor:
-
-- Greets the user.
-- Explains that available Excel files can be uploaded without a prescribed template.
-- Sets `flow.conversationState = WAITING_FOR_FILES`.
-
----
-
-# Stage 2 — File Intake & Discovery
-
-Input:
-
-```text
-One or more uploaded files
-```
-
-The File Intake module:
-
-1. Inspects files.
-2. Discovers workbook sheets.
-3. Classifies files.
-4. Classifies sheets.
-5. Identifies suppliers.
-6. Identifies evaluation criteria.
-7. Records confidence and provenance.
-
-Output:
-
-```text
-flow.fileIntake
-```
+The Master must not assume that all three specialists are needed for every request.
 
 ---
 
-# Stage 3 — Input Completeness Assessment
+# Stage 3 — Discovery
 
-The Supervisor determines whether the current session has enough information.
+### Criteria Specialist
+Produces the normalized evaluation framework and candidate knockout information.
 
-Possible outcomes:
+### Supplier Specialist
+Produces supplier response/evidence objects.
 
-### Criteria available, suppliers not yet available
-
-```text
-Criteria Processing
-→ Evaluation Configuration
-→ Waiting / Supplier Processing
-```
-
-### Suppliers available, criteria already configured
-
-```text
-Supplier Processing
-→ Evaluation
-```
-
-### Material ambiguity
-
-```text
-Clarification
-→ Re-assess
-```
-
-### Required information missing
-
-```text
-Request additional relevant file(s)
-```
-
-The system should not ask users to classify or reformat files unless required.
+The Master reconciles the two outputs.
 
 ---
 
-# Stage 4 — Criteria Preparation
+# Stage 4 — Bid Understanding Package
 
-Sequence:
+The Master creates a human-facing package containing:
 
-```text
-flow.fileIntake
-↓
-Extract Evaluation Criteria
-↓
-flow.criteria
-↓
-Evaluation Configuration
-↓
-flow.evaluationConfiguration
-```
+- identified files and roles
+- suppliers
+- evaluation sections/questions
+- scoring scale/rubric
+- weights
+- candidate knockouts
+- proposed acceptance conditions
+- ambiguities
+- missing information
+- explicit/inferred distinctions
 
-The criteria source remains immutable.
-
----
-
-# Stage 5 — Supplier Preparation
-
-Sequence:
-
-```text
-flow.fileIntake
-↓
-Extract Supplier Submission
-↓
-flow.suppliers[]
-```
-
-Supports:
-
-- multiple supplier files
-- multiple suppliers within a workbook where detectable
-- incremental uploads
-- duplicate detection
+This is the required human governance checkpoint.
 
 ---
 
-# Stage 6 — Evaluation
+# Stage 5 — Human Confirmation
 
-Sequence:
+The human evaluator:
+
+1. confirms/corrects the understanding
+2. confirms/modifies scoring/weights
+3. confirms/removes candidate knockouts
+4. adds additional knockout requirements
+5. defines/confirms acceptance conditions
+6. provides material special instructions
+
+If the human states that there are no knockouts, the system records an explicit empty knockout set.
+
+---
+
+# Stage 6 — Freeze Configuration
+
+The approved `flow.evaluationConfiguration` becomes immutable for the evaluation run.
+
+A new weight/rule request after this point creates a new scenario.
+
+---
+
+# Stage 7 — Deterministic Validation and Canonicalization
+
+Validation checks:
+
+- required criteria
+- supplier coverage
+- question mapping
+- scoring range
+- weight integrity
+- knockout rule completeness
+- acceptance-condition completeness
+
+Canonicalization produces the single downstream evaluation model.
+
+---
+
+# Stage 8 — Qualitative Evaluation
+
+The Evaluation Specialist assesses each supplier response against the approved rubric and evidence.
+
+Outputs include:
+
+- question-level score recommendation
+- reasoning
+- evidence
+- strengths
+- weaknesses
+- risks
+- gaps
+- comparisons
+
+No arithmetic/ranking is performed here.
+
+---
+
+# Stage 9 — Master Challenge
+
+The Master checks whether:
+
+- evidence actually supports the assessment
+- supplier response provenance is intact
+- score recommendations follow the rubric
+- there are unexplained gaps
+- different specialists disagree
+
+If not, the Master requests targeted re-analysis.
+
+---
+
+# Stage 10 — Deterministic Evaluation
+
+The system then executes:
 
 ```text
-Validate Questionnaire Structure
+Confirmed Knockout Rules
 ↓
-Build Canonical Question Map
+Knockout Results
 ↓
-Knockout Evaluation
-↓
-Qualitative Scoring
+Score Validation
 ↓
 Weighted Score Calculation
 ↓
-Supplier Ranking
-↓
-Recommendation Generation
+Qualified Supplier Ranking
 ```
 
-Produces:
+A failed knockout disqualifies a supplier from qualified ranking.
 
-```text
-flow.evaluationResult
-```
+An ambiguous knockout returns to the human gate.
 
 ---
 
-# Stage 7 — Report Generation
+# Stage 11 — Final Synthesis
 
-Consumes:
+The Master synthesizes:
 
-```text
-flow.evaluationResult
-```
+- confirmed configuration
+- knockout outcomes
+- qualitative assessments
+- weighted scores
+- ranking
+- strengths/weaknesses
+- risks
+- negotiation opportunities
 
-Produces:
-
-```text
-flow.report
-```
-
----
-
-# Stage 8 — Post-Evaluation Analysis
-
-The Supervisor can route follow-up questions to Q&A using:
-
-```text
-flow.evaluationResult
-flow.report
-```
-
-No extraction is repeated unless explicitly required by a new input or approved re-evaluation.
+The Master explains the results but cannot alter deterministic scores/ranking without an explicit new scenario.
 
 ---
 
-# Supervisor Handoffs
+# Stage 12 — Report
 
-| Handoff | Destination |
+The output workbook contains:
+
+1. **Executive Summary**
+2. **Supplier Profiles**
+3. **Q&A Scorecard**
+4. **Score Legend**
+
+The formatting follows the approved reference workbook design.
+
+---
+
+# Stage 13 — Post-Evaluation
+
+The Master can answer follow-up questions from stored state.
+
+Supported scenarios include:
+
+- supplier comparison
+- score explanation
+- knockout explanation
+- report regeneration
+- approved weight changes
+- approved scenario re-ranking
+
+---
+
+# Handoff Philosophy
+
+The Master uses delegation rather than a rigid hard-coded sequence.
+
+The three direct specialists are:
+
+| Specialist | Core question |
 |---|---|
-| handoff_fileDiscovery | File Intake & Discovery |
-| handoff_extractCriteria | Criteria Processing |
-| handoff_configureEvaluation | Evaluation Configuration |
-| handoff_extractSuppliers | Supplier Processing |
-| handoff_runEvaluation | Evaluation Engine |
-| handoff_generateReport | Report Generator |
-| handoff_postEvaluationQA | Post Evaluation Q&A |
+| Criteria Analyst | What are we evaluating? |
+| Supplier Evidence Analyst | What did each supplier submit? |
+| Evaluation Analyst | How well does each supplier perform? |
 
-No module directly invokes another module's internal implementation.
-
----
-
-# Flow Variable Updates
-
-| Variable | Producer |
-|---|---|
-| flow.conversationState | Supervisor |
-| flow.fileIntake | File Intake & Discovery |
-| flow.criteria | Criteria Processing |
-| flow.evaluationConfiguration | Evaluation Configuration |
-| flow.suppliers | Supplier Processing |
-| flow.validationResult | Validation |
-| flow.canonicalQuestionMap | Canonical Mapping |
-| flow.knockoutResult | Knockout Evaluation |
-| flow.scoringResult | Qualitative Scoring |
-| flow.weightedScores | Weighted Calculation |
-| flow.rankingResult | Ranking |
-| flow.evaluationResult | Evaluation Engine |
-| flow.report | Report Generator |
-
----
-
-# Entry Conditions
-
-| Module | Entry Condition |
-|---|---|
-| File Intake & Discovery | One or more uploaded files |
-| Criteria Processing | Criteria source confidently identified |
-| Evaluation Configuration | flow.criteria exists |
-| Supplier Processing | Supplier source confidently identified |
-| Evaluation Engine | Criteria + Configuration + Suppliers available and validation allows evaluation |
-| Report Generator | Evaluation completed |
-| Q&A | Evaluation completed |
-
----
-
-# Exit Conditions
-
-| Module | Exit Condition |
-|---|---|
-| File Intake & Discovery | flow.fileIntake created |
-| Criteria Processing | flow.criteria created |
-| Evaluation Configuration | flow.evaluationConfiguration approved |
-| Supplier Processing | flow.suppliers populated |
-| Evaluation Engine | flow.evaluationResult created |
-| Report Generator | flow.report generated |
-| Post-Evaluation Q&A | Conversation continues or ends |
+The Master can invoke one, two or all three depending on the request.
 
 ---
 
 # Failure Handling
 
-File Discovery failure
-
-→ identify affected file
-→ explain in business language
-→ request replacement or clarification
-
-Criteria Processing failure
-
-→ return to Supervisor
-→ request another relevant evaluation/scoring source if necessary
-
-Supplier Processing failure
-
-→ identify affected supplier/file
-→ request targeted re-upload
-
-Evaluation failure
-
-→ present validation issues
-→ await correction/clarification
-
-Workflow execution shall not terminate unexpectedly.
+| Failure | Recovery |
+|---|---|
+| File discovery issue | Targeted file clarification/re-upload |
+| Criteria ambiguity | Targeted criteria re-analysis or human confirmation |
+| Supplier mapping issue | Targeted supplier re-analysis |
+| Evaluation evidence gap | Targeted Evaluation Specialist re-analysis |
+| Configuration invalid | Return to human confirmation |
+| Knockout ambiguity | Return to human confirmation |
+| Deterministic validation failure | Correct input/configuration before continuing |
+| Report failure | Retry report generation without re-running evaluation |
 
 ---
 
-# Design Constraints
+# Orchestration Invariants
 
-- Users are not required to classify files manually.
-- Users are not required to follow prescribed file names.
-- Users are not required to use prescribed sheet or column names.
-- Internal normalized contracts remain strict.
-- Criteria and supplier source data remain immutable.
-- Material ambiguity must be resolved before it can affect evaluation.
-- Supplier Processing never scores.
-- Report Generation never scores.
-- Every module owns exactly one responsibility.
-- Every shared object has one producer.
-
----
-
-# Summary
-
-The orchestration now separates the flexible user-facing intake experience from the controlled procurement evaluation pipeline.
-
-This preserves the original architecture while making the solution suitable for real floor users who should be able to upload the Excel files they already have rather than conform to a technical template.
+1. One Master Deep Agent.
+2. Maximum three direct specialist sub-agents.
+3. Dynamic delegation, not fixed specialist execution.
+4. Human confirmation before the first evaluation run.
+5. Confirmed configuration is frozen.
+6. Knockouts are human-confirmed and deterministically executed.
+7. Arithmetic/weighting/ranking are deterministic.
+8. Specialist outputs are challenged before final synthesis.
+9. Source data is preserved.
+10. Report generation is presentation-only.
