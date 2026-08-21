@@ -20,32 +20,61 @@ The Master Deep Agent owns adaptive orchestration. Three direct specialists perf
 
 ```mermaid
 flowchart TD
+    START([START]) --> M[MASTER DEEP AGENT]
+    M --> INTENT{Request type?}
 
-START([START]) --> M[MASTER DEEP AGENT]
-M --> PLAN[Plan task + dependencies]
-PLAN --> C[Criteria Specialist]
-PLAN --> S[Supplier Specialist]
-C --> B[Build Bid Understanding]
-S --> B
-B --> H[Human Confirmation + Knockout Configuration]
-H --> CFG[Frozen Evaluation Configuration]
-CFG --> V[Deterministic Validation]
-V --> CAN[Canonical Evaluation Model]
-CAN --> E[Evaluation Specialist]
-E --> QC[Master Challenge / QC]
-QC -->|rework| E
-QC -->|accepted| K[Confirmed Knockout Execution]
-K --> KO{Any ambiguous knockout?}
-KO -->|Yes| H
-KO -->|No| SCORE[Deterministic Score Validation + Weighted Calculation]
-SCORE --> RANK[Deterministic Ranking]
-RANK --> SYN[Master Procurement Synthesis]
-SYN --> REPORT[Four-Tab Excel Report]
-REPORT --> OUTPUT([OUTPUT])
+    INTENT -->|Simple lookup / follow-up| DIRECT[Master handles from stored state]
+    DIRECT --> OUTPUT([OUTPUT])
 
-M -. dynamic delegation .-> E
-M -. targeted re-analysis .-> C
-M -. targeted re-analysis .-> S
+    INTENT -->|New bid analysis| PLAN[Plan task + dependencies]
+    PLAN --> ROUTE{Required specialist work?}
+
+    ROUTE -->|Criteria needed| C[Criteria Specialist]
+    ROUTE -->|Supplier evidence needed| S[Supplier Specialist]
+    ROUTE -->|Evaluation needed after confirmation| E[Evaluation Specialist]
+
+    C --> B[Build Bid Understanding]
+    S --> B
+    B --> SUFF{Understanding sufficient?}
+    SUFF -->|No| REWORK[Targeted retrieval / re-analysis]
+    REWORK --> C
+    REWORK --> S
+    SUFF -->|Yes| H[Human Confirmation + Knockout Configuration]
+
+    H -->|Correction| B
+    H -->|Approved| CFG[Frozen Evaluation Configuration]
+    CFG --> V[Deterministic Configuration / Input Validation]
+    V -->|Invalid| H
+    V -->|Valid| CAN[Canonical Evaluation Model]
+
+    CAN --> E
+    E --> QC[Master Challenge / QC]
+    QC -->|Evidence gap / inconsistency| REVAL[Targeted Evaluation Re-analysis]
+    REVAL --> E
+    QC -->|Accepted| K[Confirmed Knockout Execution]
+
+    K --> KO{Knockout status}
+    KO -->|Ambiguous| H
+    KO -->|Fail| DQ[Disqualified Supplier]
+    KO -->|Pass| SCORE[Deterministic Score Validation / Calculation]
+
+    SCORE --> WEIGHT[Weighted Calculation]
+    WEIGHT --> RANK[Deterministic Qualified Ranking]
+    DQ --> RESULT[Evaluation Result Builder]
+    RANK --> RESULT
+
+    RESULT --> SYN[Master Procurement Synthesis]
+    SYN --> REPORT[Four-Tab Excel Report]
+    REPORT --> OUTPUT
+
+    SYN --> POST[Post-Evaluation State]
+    POST -->|Explain / compare / regenerate| M
+    POST -->|Approved weight/rule change| SCENARIO[New Scenario Configuration]
+    SCENARIO --> V
+
+    M -. parallel independent work .-> C
+    M -. parallel independent work .-> S
+    M -. targeted re-analysis .-> E
 ```
 
 The Master may skip unnecessary specialists for narrow requests and may execute independent discovery tasks in parallel.
