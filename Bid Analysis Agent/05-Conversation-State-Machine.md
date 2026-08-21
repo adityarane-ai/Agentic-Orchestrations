@@ -1,22 +1,14 @@
 # 05. Conversation State Machine
 
-**Document Version:** 1.2
+**Document Version:** 1.3
 
-**Status:** Deep Agent + Human Confirmation Baseline
+**Status:** Deep Agent + GEP Knowledge + Human Confirmation Baseline
 
-**Parent Document:** Software Design Specification (SDS)
+## Purpose
 
----
+The Master Deep Agent dynamically orchestrates specialist work and relevant GEP Knowledge Library retrieval. The user journey contains a mandatory human-governed configuration gate before the first evaluation run.
 
-# Purpose
-
-This document defines the conversational lifecycle of the RFP Qualitative Bid Analysis Agent.
-
-The Master Deep Agent dynamically orchestrates specialist work, but the user journey contains a deterministic human-governed gate: the agent must present its current understanding before evaluation and obtain confirmation of material evaluation rules, including knockout requirements.
-
----
-
-# State Machine
+## State Machine
 
 ```mermaid
 stateDiagram-v2
@@ -34,14 +26,17 @@ stateDiagram-v2
         DISCOVERY_RECONCILIATION --> [*]
     }
 
+    PLANNING --> KNOWLEDGE_RETRIEVAL : relevant GEP context required
+    KNOWLEDGE_RETRIEVAL --> DISCOVERY_SPECIALISTS
+    KNOWLEDGE_RETRIEVAL --> BUILDING_UNDERSTANDING
+
     DISCOVERY_SPECIALISTS --> BUILDING_UNDERSTANDING
     BUILDING_UNDERSTANDING --> CLARIFICATION_PACKAGE
     CLARIFICATION_PACKAGE --> HUMAN_CONFIRMATION
 
-    HUMAN_CONFIRMATION --> CORRECTION_REQUIRED : understanding incorrect / incomplete
-    CORRECTION_REQUIRED --> PLANNING : targeted re-discovery
-
-    HUMAN_CONFIRMATION --> KNOCKOUT_CONFIGURATION : understanding confirmed
+    HUMAN_CONFIRMATION --> CORRECTION_REQUIRED : incorrect / incomplete
+    CORRECTION_REQUIRED --> PLANNING
+    HUMAN_CONFIRMATION --> KNOCKOUT_CONFIGURATION : confirmed
     KNOCKOUT_CONFIGURATION --> CONFIGURATION_VALIDATION
     CONFIGURATION_VALIDATION --> HUMAN_CONFIRMATION : invalid / incomplete
     CONFIGURATION_VALIDATION --> EVALUATION_READY : approved
@@ -52,157 +47,79 @@ stateDiagram-v2
     TARGETED_REANALYSIS --> EVALUATING
     MASTER_QC --> DETERMINISTIC_PROCESSING : accepted
 
-    DETERMINISTIC_PROCESSING --> HUMAN_EXCEPTION : ambiguous knockout / material validation issue
+    DETERMINISTIC_PROCESSING --> HUMAN_EXCEPTION : ambiguous knockout / material issue
     HUMAN_EXCEPTION --> KNOCKOUT_CONFIGURATION
-    DETERMINISTIC_PROCESSING --> SYNTHESIS : deterministic result valid
+    DETERMINISTIC_PROCESSING --> SYNTHESIS : valid
 
     SYNTHESIS --> GENERATING_REPORT
     GENERATING_REPORT --> COMPLETED
     COMPLETED --> POST_EVALUATION
 
-    POST_EVALUATION --> POST_EVALUATION : explanation / comparison / report regeneration
-    POST_EVALUATION --> SCENARIO_REEVALUATION : approved weight/rule change
+    POST_EVALUATION --> POST_EVALUATION : explain / compare / regenerate
+    POST_EVALUATION --> SCENARIO_REEVALUATION : approved rule / weight change
     SCENARIO_REEVALUATION --> CONFIGURATION_VALIDATION
 
     DISCOVERING --> DISCOVERY_ERROR : source problem
-    DISCOVERY_ERROR --> WAITING_FOR_FILES
+    KNOWLEDGE_RETRIEVAL --> KNOWLEDGE_ERROR : material retrieval failure
+    KNOWLEDGE_ERROR --> HUMAN_CONFIRMATION : resolve with human
     EVALUATING --> EVALUATION_ERROR : unrecoverable specialist error
     EVALUATION_ERROR --> TARGETED_REANALYSIS
     GENERATING_REPORT --> REPORT_ERROR : export failure
     REPORT_ERROR --> GENERATING_REPORT
 ```
 
----
+## Key States
 
-# State Definitions
+**DISCOVERING:** inspect user files and identify likely roles.
 
-## INITIAL
-Start a new evaluation session and explain the available-file upload model.
+**PLANNING:** Master determines specialists, tools, knowledge and dependencies.
 
-## WAITING_FOR_FILES
-Collect one or more relevant files. Users do not need to classify or reformat them.
+**KNOWLEDGE_RETRIEVAL:** retrieve relevant GEP category/internal knowledge through approved Knowledge Library tools when it can materially improve interpretation or evaluation.
 
-## DISCOVERING
-Inspect uploaded workbooks and available structures using the appropriate file/document capabilities.
+**DISCOVERY_SPECIALISTS:** Criteria and Supplier specialists may run independently/parallel where possible.
 
-## PLANNING
-Master determines which specialists and tools are required and establishes dependencies.
+**BUILDING_UNDERSTANDING:** reconcile source facts, supplier identities, criteria and relevant knowledge context.
 
-## DISCOVERY_SPECIALISTS
-Run Criteria Specialist and Supplier Specialist in parallel when independent, or sequentially when dependencies require it.
+**CLARIFICATION_PACKAGE:** generate the human-facing Bid Clarification Package.
 
-## BUILDING_UNDERSTANDING
-Master reconciles discovered criteria, supplier identities, file roles and material evidence.
+**HUMAN_CONFIRMATION:** human confirms/corrects understanding and material evaluation configuration.
 
-## CLARIFICATION_PACKAGE
-Generate the structured Bid Clarification Package.
+**KNOCKOUT_CONFIGURATION:** human confirms/removes/adds knockout requirements and acceptance conditions, including explicit confirmation of no knockouts where applicable.
 
-The package includes:
+**CONFIGURATION_VALIDATION:** deterministically validate the confirmed configuration.
 
-- file roles
-- suppliers
-- evaluation sections/questions
-- scoring/rubric information
-- weights
-- potential knockout candidates
-- proposed acceptance conditions
-- material ambiguities
-- missing information
-- explicit vs inferred values
+**EVALUATION_READY:** configuration is approved/frozen.
 
-## HUMAN_CONFIRMATION
-Present the package and request confirmation/correction of the agent's understanding.
+**EVALUATING:** Evaluation Specialist performs semantic assessment using confirmed criteria, supplier evidence and relevant GEP context.
 
-## CORRECTION_REQUIRED
-Human indicates that the understanding is incomplete or incorrect. Master incorporates the correction and re-runs only the affected discovery/analysis.
+**MASTER_QC:** Master challenges evidence sufficiency and consistency.
 
-## KNOCKOUT_CONFIGURATION
-Human confirms, removes, modifies or adds knockout requirements and acceptance conditions. Human may explicitly confirm that no knockouts apply.
+**DETERMINISTIC_PROCESSING:** validation, canonical mapping, confirmed knockout execution, score arithmetic, weighting and ranking.
 
-## CONFIGURATION_VALIDATION
-Deterministically validate that the configuration is internally coherent: required acceptance conditions, weights, score range, included criteria and supplier inputs are valid.
+**POST_EVALUATION:** answer questions from stored state.
 
-## EVALUATION_READY
-The evaluation configuration is approved and frozen for the run.
+**SCENARIO_REEVALUATION:** create a new configuration/result scenario for an approved change.
 
-## EVALUATING
-Evaluation Specialist performs semantic qualitative assessment against the confirmed framework and supplier evidence.
+## Knowledge Governance
 
-## MASTER_QC
-Master challenges specialist results for evidence sufficiency, source consistency and logical consistency.
+GEP knowledge is contextual. It may inform interpretation, benchmarking and rationale but cannot silently become an evaluation rule.
 
-## TARGETED_REANALYSIS
-Master sends only the deficient task back to the relevant specialist/tool rather than restarting the whole workflow.
+If retrieved knowledge conflicts with the RFP or confirmed configuration:
 
-## DETERMINISTIC_PROCESSING
-Run validation, canonical mapping, confirmed knockout execution, score arithmetic, weighting and ranking.
+1. Preserve the source requirement.
+2. Surface the conflict.
+3. Ask for human confirmation if material.
+4. Do not silently change the rule.
 
-## HUMAN_EXCEPTION
-Used for material ambiguity that cannot be safely resolved by deterministic processing, such as an ambiguous knockout interpretation.
+## State Transition Rules
 
-## SYNTHESIS
-Master combines confirmed configuration, qualitative assessments and deterministic results into procurement-level findings.
-
-## GENERATING_REPORT
-Generate the standard four-tab Excel workbook.
-
-## COMPLETED
-Present results and report reference.
-
-## POST_EVALUATION
-Answer questions using stored evaluation state.
-
-## SCENARIO_REEVALUATION
-Create a new configuration/result scenario for an approved change; preserve the original run.
-
----
-
-# State Transition Rules
-
-1. Evaluation shall never begin before human confirmation of material configuration.
-2. Candidate knockouts are not confirmed knockouts until the human accepts them.
-3. If the human says there are no knockouts, no knockout rules are created.
-4. Confirmed configuration is frozen during the evaluation run.
-5. A changed weight/rule creates a new scenario.
-6. Material ambiguity is routed to human confirmation.
-7. Specialist failures are isolated and retried/re-analyzed where possible.
-8. Follow-up questions use stored results unless a new scenario is explicitly requested.
-9. Report generation occurs only after final QC and deterministic processing.
-10. Source information remains immutable.
-
----
-
-# Error States
-
-### DISCOVERY_ERROR
-Affected file is identified and the user is asked for a replacement or clarification.
-
-### SPECIALIST_ERROR
-Master retries once or routes the affected task to targeted recovery.
-
-### CONFIGURATION_ERROR
-Configuration issues are returned to the human confirmation gate.
-
-### VALIDATION_ERROR
-Material structural issues prevent evaluation until corrected or explicitly resolved.
-
-### EVALUATION_ERROR
-Master identifies the failed evaluation component and requests targeted recovery.
-
-### REPORT_ERROR
-Evaluation remains intact; only report generation is retried.
-
----
-
-# Follow-Up Examples
-
-| User input | State behaviour |
-|---|---|
-| "Here are the files" | DISCOVERING |
-| "Yes, this understanding is correct" | KNOCKOUT_CONFIGURATION |
-| "Add ISO 27001 as a knockout" | CONFIGURATION_VALIDATION |
-| "No knockout questions" | CONFIGURATION_VALIDATION with empty knockout set |
-| "Supplier B's response is on another sheet" | CORRECTION_REQUIRED / targeted supplier analysis |
-| "Why is Supplier C ranked #2?" | POST_EVALUATION |
-| "Make implementation weight 30%" | SCENARIO_REEVALUATION |
-| "Regenerate the report" | GENERATING_REPORT using stored evaluation result |
+1. Evaluation never begins before human confirmation of material configuration.
+2. Candidate knockouts are not authoritative until confirmed.
+3. No-knockout confirmation produces an empty rule set.
+4. Confirmed configuration is frozen for the run.
+5. GEP knowledge cannot silently modify configuration.
+6. Material knowledge-retrieval failure returns to human clarification when required.
+7. Ambiguous knockouts return to human configuration.
+8. Follow-ups use stored state unless a new scenario is explicitly requested.
+9. Report generation occurs after deterministic processing and final QC.
+10. Source evidence remains immutable.
