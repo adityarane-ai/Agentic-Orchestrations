@@ -1,12 +1,14 @@
 # 08. Flow Variables
 
-**Document Version:** 1.3
-
-**Status:** Deep Agent + GEP Knowledge + HITL Data Contract Baseline
+**Document Version:** 1.4  
+**Status:** Business data-contract baseline + current runtime mapping  
+**Updated:** 23 Aug 2026
 
 ## Purpose
 
 Flow Variables separate source discovery, GEP domain context, human-confirmed configuration, semantic evaluation, deterministic processing and reporting.
+
+This document describes the intended **business data contract**. Only a small subset of generic Flow Variable behaviour has currently been runtime-tested. See the runtime test log and current verification ledger before treating a platform detail as proven.
 
 ## Core Lifecycle
 
@@ -16,7 +18,7 @@ flowchart TD
     FI --> CRIT[flow.criteria]
     FI --> SUP[flow.suppliers]
 
-    KL[GEP Knowledge Library Tools] --> KC[flow.knowledgeContext]
+    KL[GEP Knowledge Workflow + Library Tools] --> KC[flow.knowledgeContext]
     KC --> CRIT
     KC --> EVALCTX[Evaluation Context]
     KC --> MASTER[Master Context]
@@ -73,7 +75,7 @@ flowchart TD
 | flow.fileIntake | Discovery | Master, Criteria, Supplier |
 | flow.criteria | Criteria Specialist | Master, Validation, Canonical Mapping |
 | flow.suppliers | Supplier Specialist | Master, Validation, Canonical Mapping |
-| flow.knowledgeContext | Knowledge tools / Master | Master, Criteria, Evaluation, clarification |
+| flow.knowledgeContext | Knowledge workflow / Master | Master, Criteria, Evaluation, clarification |
 | flow.clarificationPackage | Master | Human confirmation |
 | flow.evaluationConfiguration | Human confirmation / Master | Validation, Canonical Mapping, Knockout, Scoring, Weighting |
 | flow.validationResult | Validation | Master, Canonical Mapping |
@@ -88,7 +90,7 @@ flowchart TD
 
 ## flow.knowledgeContext
 
-Purpose: store the relevant GEP internal knowledge retrieved for the current task/run.
+Purpose: store relevant GEP internal knowledge retrieved for the current task/run.
 
 Contains, where available:
 
@@ -104,6 +106,30 @@ Contains, where available:
 Knowledge context is **not supplier evidence** and is not an evaluation rule by itself.
 
 It may inform semantic interpretation, benchmarking and rationale. Material business-rule changes require human confirmation.
+
+### Knowledge workflow rule
+
+For any knowledge-related agent invocation:
+
+```text
+get-knowledge-workflow-instructions
+        ↓
+get_library_metadata
+        ↓
+source-specific knowledge tools
+```
+
+For data-search sources:
+
+```text
+get_library_metadata
+        ↓
+get_data_search_fields
+        ↓
+execute_search_query
+```
+
+If `default_filters` are provided by the data-search schema, they are mandatory access-control filters and must be retained as specified in the supplied tool contract.
 
 ## flow.evaluationConfiguration
 
@@ -153,14 +179,14 @@ The score recommendation is not the authoritative arithmetic result.
 
 ## Deterministic Variables
 
-`flow.weightedScores` and `flow.rankingResult` are generated only by deterministic processing.
+`flow.weightedScores` and `flow.rankingResult` are generated only by deterministic processing in the business architecture.
 
 No LLM may modify these values directly.
 
 ## Ownership Rules
 
-1. Every Flow Variable has exactly one producer.
-2. Consumers treat shared objects as read-only.
+1. Every Flow Variable should have exactly one intentional producer.
+2. Consumers treat shared objects as read-only contracts.
 3. Source data is immutable.
 4. GEP knowledge context is separate from supplier evidence.
 5. Human-confirmed configuration is immutable after freeze.
@@ -168,3 +194,7 @@ No LLM may modify these values directly.
 7. Unknown information is explicit.
 8. Material inference retains provenance/confidence.
 9. Scenario changes create new lineage.
+
+## Runtime qualification note
+
+The current platform tests have only proven a narrow Human Input → Flow Variable write path. The broader create/write/read/transform lifecycle of arbitrary Flow Variables remains a dedicated runtime test item.
