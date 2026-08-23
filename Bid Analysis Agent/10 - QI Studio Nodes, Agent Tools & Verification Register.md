@@ -1,6 +1,6 @@
 # 10. QI Studio Nodes, Agent Tools & Verification Register
 
-**Document Version:** 1.0  
+**Document Version:** 1.1  
 **Status:** Working implementation evidence register  
 **Scope:** QI Studio orchestration nodes and Agent-node tools captured during the current design investigation.
 
@@ -464,6 +464,79 @@ This tool is not merely schema discovery. When `default_filters` is configured, 
 
 ---
 
+## 5.4 Search Knowledge
+
+**Tool name**
+
+```text
+search_knowledge
+```
+
+### Purpose
+
+Performs semantic knowledge search using the supplied query. The configured description states that the function generates a text embedding for the query, retrieves relevant knowledge chunks from local and cloud-based sources, ranks them by relevance, and re-ranks when the requested result count is greater than the default threshold for improved accuracy.
+
+### Returned structure documented in the tool description
+
+The tool returns a `List[LlmKKnowledgeSearchResponse]` style list of knowledge items containing:
+
+- `id` - unique identifier of the knowledge item
+- `name` - name of the knowledge item
+- `path` - path or location of the knowledge item
+- `relevance` - relevance score against the query
+- `content` - content of the knowledge item, which may contain image source path references
+
+### Search-source behaviour captured
+
+- Supports searching across multiple knowledge sources, including cloud knowledge.
+- Results are limited to the top most relevant items by default, with optional reranking for enhanced precision.
+- The tool description explicitly cautions against calling the function repeatedly with the same query unless the queries are different. Repeated identical calls can create redundant processing and resource usage.
+
+### Parameters captured
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `library_id` | `string` | Must be an ID returned by `get_library_metadata`. The description states: no modification, shortening, fabrication, assumption, or reuse from unverified memory. Re-verify against metadata exactly. |
+| `knowledge_id` | `string` | Unique identifier of the knowledge inside the library. Must be taken exactly from `get_library_metadata`; same no-fabrication / no-modification rule applies. |
+| `query` | `string` | Search query. |
+| `top_n` | `integer` | Optional number of top results to return. |
+
+### Image handling rules captured
+
+When search results contain image source path references, the configured instructions specify:
+
+1. **Prioritize images over text** when explaining steps or concepts; use images first.
+2. Preserve the exact image reference/path returned by the tool. Do not merge or alter paths.
+3. Introduce the image briefly, insert the image source path tag, then continue with transitional language.
+4. Include relevant images by default rather than requiring the user to explicitly request them.
+
+### Response / advanced settings observed
+
+From the supplied configuration screenshot:
+
+- Include Thoughts: ON
+- Response Filtering: Exclude Fields
+- Field Patterns: empty in captured example
+- Store Tool Output: OFF
+- Return Direct: OFF
+- Human-in-the-Loop: OFF
+
+### Status
+
+**Confirmed from supplied Search Knowledge tool configuration screenshots.**
+
+### Remaining validation
+
+- Exact default value and maximum allowed value for `top_n`.
+- Exact reranking threshold and ranking algorithm.
+- Exact retrieval-source selection behaviour when several knowledge sources are eligible.
+- Whether image references are guaranteed to be resolvable/renderable in every downstream context.
+- Exact error behaviour for stale or invalid `library_id` / `knowledge_id`.
+- Runtime behaviour when no relevant knowledge is found.
+- Whether duplicate-result suppression occurs across multiple sources.
+
+---
+
 # 6. Knowledge Workflow - Current Working Model
 
 Based on the tools captured so far, the current working sequence is:
@@ -479,6 +552,8 @@ flowchart TD
     Q --> R[Retrieved evidence]
     K --> R
     R --> A[Agent reasoning / synthesis]
+    S -->|Semantic knowledge search| SK[search_knowledge]
+    SK --> R
 ```
 
 This flow should remain subordinate to the actual `target_functions` returned by metadata. Tool availability alone does not authorize a tool call for a particular knowledge source.
@@ -497,6 +572,8 @@ The platform/tool evidence captured in this investigation supports the following
 6. Approval is for an explicit human decision gate.
 7. Decision Tree is for internal state-driven branching and mini-flows.
 8. Handoff is for transferring execution to another node.
+9. Semantic knowledge retrieval should use the configured `search_knowledge` contract and preserve source/image references exactly as returned.
+10. Repeated identical semantic-search calls should be avoided unless the query is materially different.
 
 These principles should be treated as implementation rules where backed by the captured platform instructions, while runtime-specific details remain subject to testing.
 
@@ -520,7 +597,6 @@ The following work remains based strictly on what has been captured so far.
 
 Detailed screenshots / definitions have not yet been captured for:
 
-- Search Knowledge
 - Get Reference File
 - Get Table Schema
 - Resolve Field Value
@@ -575,6 +651,8 @@ Even for tools whose UI has already been documented, runtime tests should verify
 - Retry behaviour.
 - Resumption after pause.
 - Permissions / access-control behaviour.
+- Search Knowledge reranking and source-selection behaviour.
+- Search Knowledge image-reference handling.
 
 ---
 
@@ -614,3 +692,17 @@ Added the first consolidated QI Studio node and Agent-tool evidence register cov
 - Get Data Search Fields
 - Knowledge workflow and access-control rules
 - Pending evidence and runtime-validation queue
+
+### 2026-08-23 - Search Knowledge capture
+
+Added detailed evidence for `search_knowledge`, including:
+
+- Semantic embedding + retrieval + relevance ranking behaviour
+- Multi-source and cloud-knowledge search support
+- `library_id`, `knowledge_id`, `query`, and `top_n` parameters
+- Exact ID-governance rules
+- Result fields: `id`, `name`, `path`, `relevance`, `content`
+- Repeated-identical-query caution
+- Image-priority, image-reference preservation, and default-image-inclusion instructions
+- Current advanced settings shown in the UI
+- Runtime questions still requiring validation
