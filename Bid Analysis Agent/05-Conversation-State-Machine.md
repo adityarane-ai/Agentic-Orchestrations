@@ -1,12 +1,14 @@
 # 05. Conversation State Machine
 
-**Document Version:** 1.3
-
-**Status:** Deep Agent + GEP Knowledge + Human Confirmation Baseline
+**Document Version:** 1.4  
+**Status:** Business workflow baseline with current knowledge-workflow rule  
+**Updated:** 23 Aug 2026
 
 ## Purpose
 
 The Master Deep Agent dynamically orchestrates specialist work and relevant GEP Knowledge Library retrieval. The user journey contains a mandatory human-governed configuration gate before the first evaluation run.
+
+The state machine describes the intended business workflow. It does not by itself prove the exact QI Studio runtime implementation of each transition.
 
 ## State Machine
 
@@ -26,7 +28,8 @@ stateDiagram-v2
         DISCOVERY_RECONCILIATION --> [*]
     }
 
-    PLANNING --> KNOWLEDGE_RETRIEVAL : relevant GEP context required
+    PLANNING --> KNOWLEDGE_INITIALIZATION : relevant knowledge required
+    KNOWLEDGE_INITIALIZATION --> KNOWLEDGE_RETRIEVAL
     KNOWLEDGE_RETRIEVAL --> DISCOVERY_SPECIALISTS
     KNOWLEDGE_RETRIEVAL --> BUILDING_UNDERSTANDING
 
@@ -74,7 +77,9 @@ stateDiagram-v2
 
 **PLANNING:** Master determines specialists, tools, knowledge and dependencies.
 
-**KNOWLEDGE_RETRIEVAL:** retrieve relevant GEP category/internal knowledge through approved Knowledge Library tools when it can materially improve interpretation or evaluation.
+**KNOWLEDGE_INITIALIZATION:** For any knowledge-related invocation, call `get-knowledge-workflow-instructions` first.
+
+**KNOWLEDGE_RETRIEVAL:** after initialization, call `get_library_metadata` and then only the source-specific tools permitted by the returned knowledge metadata. For data-search sources, obtain schema through `get_data_search_fields` before executing the search.
 
 **DISCOVERY_SPECIALISTS:** Criteria and Supplier specialists may run independently/parallel where possible.
 
