@@ -64,7 +64,7 @@ flowchart TB
 
     subgraph KNOW[GEP KNOWLEDGE]
         K[GEP Category Toolkits<br/>Methodologies • Benchmarks]
-        KT[Knowledge Library Tools]
+        KT[Knowledge Workflow + Library Tools]
         K --> KT
     end
 
@@ -89,6 +89,20 @@ flowchart TB
 ## GEP Knowledge Layer
 
 GEP category toolkits and internal knowledge are accessed through Knowledge Library tools. They are a **contextual capability layer**, not a fourth sub-agent.
+
+### Current knowledge-tool initialization rule
+
+For every knowledge-related agent invocation, the current supplied platform contract requires:
+
+```text
+get-knowledge-workflow-instructions
+        ↓
+get_library_metadata
+        ↓
+source-specific knowledge tools
+```
+
+For data-search knowledge, the known sequence continues through `get_data_search_fields` before search execution. Mandatory `default_filters`, when supplied by the schema, are treated as access-control constraints.
 
 Knowledge can inform category interpretation, benchmarks, evaluation guidance, methodology, terminology and procurement synthesis.
 
@@ -174,22 +188,18 @@ The visual hierarchy and formatting follow the approved reference workbook. The 
 
 Completed evaluations remain available for conversational analysis. Approved rule/weight changes create new scenario lineage and preserve the original result.
 
-## Repository Documents
+## Platform Reverse-Engineering Documents
+
+The following maintain platform facts separately from the frozen business architecture:
 
 ```text
-01-Executive-Summary.md
-02-Business Requirements.md
-03-Solution-Overview.md
-04-System-Architecture.md
-05-Conversation-State-Machine.md
-05A-Data-Flow-Architecture.md
-06-Overall-Orchestration.md
-07-QI Studio Orchestration Blueprint.md
-08 – Flow Variables.md
-09-JSON Schemas.md
+10 - QI Studio Nodes, Agent Tools & Verification Register.md
+11 - Runtime Variables, State & End-to-End Test Playbook.md
+12 - End-to-End Node Test Log.md
+13 - Current Understanding & Verification Ledger.md
 ```
 
-These documents form the V1.3 implementation contract.
+`13 - Current Understanding & Verification Ledger.md` is the canonical control document for current understanding, conflicts and pending verification.
 
 ## Architecture Invariants
 
@@ -207,6 +217,7 @@ These documents form the V1.3 implementation contract.
 12. Four-tab standardized report.
 13. Scenario lineage for approved re-evaluation.
 14. No silent invention of procurement rules or supplier facts.
+15. Platform runtime claims must be supported by evidence or explicitly marked pending.
 
 ## Source of Truth Rule
 
