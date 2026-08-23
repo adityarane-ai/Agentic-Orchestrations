@@ -1,12 +1,14 @@
 # 06. Overall Orchestration
 
-**Document Version:** 1.3
-
-**Status:** Implementation Architecture Baseline — Deep Agent + GEP Knowledge
+**Document Version:** 1.4  
+**Status:** Business architecture baseline with current platform workflow rules  
+**Updated:** 23 Aug 2026
 
 ## Purpose
 
 The Master Deep Agent owns adaptive orchestration. Three direct specialists perform bounded semantic work. GEP Knowledge Library tools provide internal category/domain context. Human confirmation establishes material evaluation rules. Deterministic processing executes rules and calculations.
+
+This document is a business/solution architecture. Runtime-specific claims are maintained in the platform evidence and test documents.
 
 ## Master Execution Model
 
@@ -18,7 +20,8 @@ flowchart TD
     DIRECT --> OUTPUT([OUTPUT])
     INTENT -->|New bid analysis| PLAN[Plan task + dependencies + knowledge needs]
     PLAN --> KNOW{Relevant GEP knowledge?}
-    KNOW -->|Yes| K[Knowledge Library Tools]
+    KNOW -->|Yes| KI[get-knowledge-workflow-instructions]
+    KI --> K[get_library_metadata]
     KNOW -->|No| ROUTE
     K --> ROUTE{Required specialist work?}
 
@@ -60,7 +63,31 @@ flowchart TD
 
 ## Knowledge Use Policy
 
-GEP knowledge is retrieved only when relevant to the task. It may inform:
+Knowledge is retrieved only when relevant to the task.
+
+For every knowledge-related agent invocation, the current tool contract requires:
+
+```text
+get-knowledge-workflow-instructions
+        ↓
+get_library_metadata
+        ↓
+source-specific knowledge tools
+```
+
+For data-search knowledge:
+
+```text
+get_library_metadata
+        ↓
+get_data_search_fields
+        ↓
+execute_search_query
+```
+
+When `default_filters` are returned by the data-search schema, the supplied instructions describe them as mandatory access-control filters that must be retained in subsequent search execution.
+
+Knowledge may inform:
 
 - category terminology
 - category best practice
@@ -90,7 +117,7 @@ Master determines request type, specialists, dependencies, required tools and re
 Criteria and Supplier specialists normalize source material. Independent tasks may run in parallel.
 
 ### 4. Knowledge Enrichment
-Relevant GEP knowledge is retrieved through the Knowledge Library tools and supplied as contextual input to the appropriate agent.
+Run the mandatory knowledge-initialization step, then retrieve relevant knowledge through the approved Knowledge Library workflow.
 
 ### 5. Bid Understanding
 Master creates the Bid Clarification Package.
@@ -150,3 +177,4 @@ Use stored state for explanation/comparison. Approved rule/weight changes create
 10. GEP knowledge never silently overrides source or configuration.
 11. Specialist outputs are challenged before synthesis.
 12. Report generation is presentation-only.
+13. Platform runtime assumptions must be validated independently of the business architecture.
