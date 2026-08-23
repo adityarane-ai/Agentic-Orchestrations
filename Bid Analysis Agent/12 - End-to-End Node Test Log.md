@@ -1,6 +1,6 @@
 # 12. End-to-End Node Test Log
 
-**Document Version:** 1.1  
+**Document Version:** 1.2  
 **Status:** Active runtime test record  
 **Scope:** End-to-end validation of QI Studio orchestration nodes, variable propagation, node outputs and final Output behaviour.  
 **Started:** 23 Aug 2026
@@ -47,51 +47,27 @@ Each test therefore records four layers:
 
 Verify the complete path from the START node through Human Input, into a user-created Flow Variable, and finally into the Output node.
 
-This test is specifically designed to prove that workflow state must be explicitly mapped to a Flow Variable before the Output node can reliably return it.
+## 3.2 Configuration
 
-## 3.2 Test topology
-
-```text
-START
-  ↓
-HUMAN INPUT
-  ↓
-FLOW VARIABLE
-  ↓
-OUTPUT
-```
-
-## 3.3 Configuration used
-
-### START node
-
-Input message:
+START message:
 
 ```text
 hello
 ```
 
-Expected engine exposure:
-
-```text
-system.userQuery = "hello"
-```
-
-### Human Input node
-
-Question:
+Human Input question:
 
 ```text
 Please enter "START_TEST"
 ```
 
-Save Response As:
+Human Input Save Response As:
 
 ```text
 flow.startTestResponse
 ```
 
-The Flow Variable had been created through the Variables UI as:
+Flow Variable:
 
 ```text
 Name: startTestResponse
@@ -99,12 +75,10 @@ Type: String
 Scope: Flow
 ```
 
-### Output node
-
-The Output node was explicitly configured to return the Flow Variable:
+Output response source:
 
 ```text
-flow.startTestResponse
+{{flow.startTestResponse}}
 ```
 
 Expected final user-visible response:
@@ -113,437 +87,88 @@ Expected final user-visible response:
 START_TEST
 ```
 
----
+## 3.3 Runtime evidence
 
-# 4. Actual Runtime Result
-
-## 4.1 Overall execution
-
-```text
-status = completed
-```
-
-The complete orchestration finished successfully.
-
-## 4.2 START runtime evidence
-
-The execution result showed:
-
-```json
-{
-  "nodeId": "start",
-  "nodeType": "start",
-  "name": "start",
-  "type": "start",
-  "success": true,
-  "interface": {
-    "inputs": {
-      "message": "hello"
-    }
-  }
-}
-```
-
-This confirms that START received the supplied input and executed successfully.
-
-The same execution also exposed:
+The run completed successfully and the START node reported `success: true` with:
 
 ```text
 system.userQuery = "hello"
 ```
 
-### START conclusion
+The Human Input checkpoint recorded:
 
-**PASS - Runtime Confirmed**
+```text
+hitlType = human_input
+variableTarget = flow.startTestResponse
+```
 
-The START node accepts the incoming message and exposes the expected system-level request state.
+The Human Input result recorded:
+
+```text
+input = START_TEST
+variableTarget = flow.startTestResponse
+success = true
+```
+
+The Flow state in the successful Flow-target execution contained:
+
+```text
+flow.startTestResponse = START_TEST
+```
+
+The Output node returned:
+
+```text
+output.messages = START_TEST
+```
+
+and the User Window displayed:
+
+```text
+START_TEST
+```
+
+### Current status
+
+**PASS - Runtime Partial**
+
+START and Human Input targeting a Flow Variable are runtime-confirmed. Final Output visibility is also confirmed, but the exact Output resolution path is kept under controlled comparison because a later test produced the same final response from `system.humanInput` while the Flow Variable remained empty.
 
 ---
 
-# 5. Human Input Runtime Evidence
+# 4. TEST-START-002 - START → Human Input(system.humanInput) → Output(system.humanInput)
 
-The runtime resume state showed:
+## 4.1 Objective
 
-```json
-{
-  "hitlType": "human_input",
-  "message": "Please enter \"START_TEST\"",
-  "variableTarget": "flow.startTestResponse"
-}
-```
+Determine whether the built-in System variable `system.humanInput` can be used directly as the Output response source, and compare that behaviour against the Flow Variable path.
 
-This proves that the workflow entered a Human Input checkpoint and that the checkpoint was configured to write to a Flow Variable rather than the built-in `system.humanInput` variable.
+## 4.2 Controlled change from TEST-START-001
 
-After the user supplied the response, the node result showed:
+Everything was kept identical except:
 
-```json
-{
-  "input": "START_TEST",
-  "variableTarget": "flow.startTestResponse",
-  "success": true,
-  "name": "human_input_0",
-  "type": "human_input"
-}
-```
-
-The final workflow state contained:
-
-```json
-{
-  "flow": {
-    "startTestResponse": "START_TEST"
-  }
-}
-```
-
-### Human Input conclusion
-
-**PASS - Runtime Confirmed**
-
-The Human Input node can pause execution, resume after a user response, and populate a user-created Flow Variable with the response.
-
-This is stronger evidence than the earlier UI-only observation that the Human Input node can save a response to `system.humanInput`.
-
----
-
-# 6. Output Runtime Evidence
-
-The Output node completed successfully and produced:
-
-```json
-{
-  "nodeType": "output",
-  "nodeId": "output_0",
-  "name": "output_0",
-  "type": "output",
-  "success": true,
-  "output": {
-    "messages": "START_TEST",
-    "selectedAgentId": "467116a9-92a6-4d3e-bc25-082dc90968c4",
-    "selectedAgentName": "rfp-qualitative-agent"
-  }
-}
-```
-
-The important field is:
-
-```text
-output.messages = "START_TEST"
-```
-
-The actual user-facing result was:
-
-```text
-User Window Output: START_TEST
-```
-
-This confirms that the explicitly configured Flow Variable was resolved into the final user-visible response.
-
-### Output conclusion
-
-**PASS - Runtime Confirmed**
-
-The Output node can consume an explicitly configured Flow Variable and expose its value as final response content.
-
----
-
-# 7. Test Result Matrix
-
-| Test element | Expected | Actual | Status |
-|---|---|---|---|
-| START receives message | `hello` | `hello` | PASS |
-| START succeeds | `true` | `true` | PASS |
-| START exposes user query | `system.userQuery = hello` | Confirmed | PASS |
-| Human Input pauses workflow | HITL checkpoint | Confirmed | PASS |
-| Human Input captures answer | `START_TEST` | `START_TEST` | PASS |
-| Human Input writes Flow Variable | `flow.startTestResponse` | Confirmed | PASS |
-| Flow variable contains answer | `START_TEST` | `START_TEST` | PASS |
-| Output consumes Flow Variable | Explicit mapping | Confirmed | PASS |
-| Output returns response | `START_TEST` | `START_TEST` | PASS |
-| User Window displays response | `START_TEST` | `START_TEST` | PASS |
-| Workflow completes | `completed` | `completed` | PASS |
-
-### Overall result
-
-**PASS - Runtime Confirmed**
-
----
-
-# 8. Important Findings
-
-## 8.1 Flow Variables are real runtime state
-
-The test proves that a Flow Variable created in the Variables UI is not merely a design-time placeholder. Once a Human Input node targets it, the value appears in the runtime `flow` state and remains available to downstream processing.
-
-Confirmed runtime path:
-
-```text
-Human Input response
-      ↓
-flow.startTestResponse
-      ↓
-Output node
-      ↓
-output.messages
-      ↓
-User Window
-```
-
-## 8.2 Output must have an explicit response source
-
-An earlier test run produced the user-facing error:
-
-```text
-No response content found in the execution result. Please try again.
-```
-
-The workflow itself had executed successfully, but the Output node had not been given the variable that contained the intended response.
-
-This establishes an important architectural rule:
-
-> **Successful execution does not automatically imply valid final response content.**
-
-The Output node needs an explicit response source.
-
-## 8.3 Node output and Flow Variable state are different layers
-
-The Human Input node exposes its own output object:
-
-```text
-nodes.human_input_0.input
-nodes.human_input_0.variableTarget
-```
-
-At the same time, the workflow state contains:
+Human Input Save Response As changed from:
 
 ```text
 flow.startTestResponse
 ```
 
-These are related but distinct runtime surfaces.
-
-## 8.4 Conversation history is not equivalent to workflow state
-
-The execution's root `conversationHistory` still contained the original START message (`hello`). The Human Input answer (`START_TEST`) was not automatically represented there as an ordinary conversational message.
-
-Therefore:
+to:
 
 ```text
-Conversation History ≠ Flow State
-```
-
-Use Flow Variables for workflow state that downstream nodes must consume reliably.
-
-## 8.5 Human Input can target Flow scope
-
-The UI documentation/example showed `system.humanInput`, but this runtime test proves that the Human Input node can instead target a user-created Flow Variable.
-
-This distinction must be preserved in future documentation:
-
-```text
-Built-in example:
 system.humanInput
-
-Runtime-confirmed custom workflow state:
-flow.startTestResponse
 ```
 
----
-
-# 9. Earlier Failed/Partial Test - START → Human Input → Output Without Explicit Output Mapping
-
-This earlier run is retained because it is valuable evidence of the failure mode.
-
-Observed runtime behaviour:
+Output response reference changed to:
 
 ```text
-START success = true
-Human Input success = true
-system.humanInput = START_TEST
-workflow status = completed
+{{system.humanInput}}
 ```
 
-But the user-visible response was:
+No other workflow configuration was intentionally changed.
 
-```text
-No response content found in the execution result. Please try again.
-```
+## 4.3 Actual runtime result
 
-### Interpretation
-
-The failure was not caused by START or Human Input execution.
-
-The problem was downstream response resolution: the Output node did not have an explicit response variable/content source configured.
-
-### Status
-
-**SUPERSEDED by TEST-START-001, but retained as a regression test case.**
-
----
-
-# 10. Regression Test Derived From This Finding
-
-## TEST-OUTPUT-001
-
-Purpose: verify that the Output node does not silently infer the desired response from arbitrary node state.
-
-### Test
-
-1. Run START.
-2. Capture a value in Human Input.
-3. Do not configure Output with that variable.
-4. Complete the orchestration.
-
-### Expected behaviour to document
-
-The Output node should either:
-
-- require a response source during configuration/validation, or
-- return a clear `No response content found` result at runtime.
-
-### Status
-
-**Pending formal rerun**
-
-The earlier run strongly suggests this behaviour, but the regression should be intentionally rerun and recorded as a dedicated test.
-
----
-
-# 11. Next End-to-End Tests
-
-The next tests should build progressively from the confirmed state model rather than testing isolated controls.
-
-## TEST-FLOW-002 - Flow Variable Lifecycle
-
-```text
-Create Flow Variable
-      ↓
-Write value
-      ↓
-Read value downstream
-      ↓
-Return value
-```
-
-Objective: prove create → write → read → output without Human Input being the only writer.
-
-## TEST-SYSTEM-003 - Built-in vs Custom System Variable
-
-Determine whether a user-created System-scope variable behaves differently from built-in read-only System variables.
-
-Questions:
-
-- Can it be written by State Update?
-- Does it persist across node boundaries?
-- Does it survive HITL resume?
-- Is it readable through the same expression syntax?
-- Is it exposed as read-only in the Variables UI after creation?
-
-## TEST-AGENT-004 - Agent Output Contract
-
-```text
-START
-  ↓
-Agent
-  ↓
-Flow Variable
-  ↓
-Output
-```
-
-Determine:
-
-- what the Agent node returns,
-- what appears under `nodes.<agent>.` runtime state,
-- how an Agent result is mapped to a Flow Variable,
-- whether the Agent's conversation history is separate from root conversation history,
-- how Output consumes the Agent result.
-
-## TEST-APPROVAL-005 - Approval Contract
-
-```text
-START
-  ↓
-APPROVAL
-  ├── Approved → continuation
-  └── Rejected → alternative/end
-```
-
-Determine:
-
-- exact `decision` value,
-- routing semantics,
-- resume metadata,
-- persistence across the pause,
-- whether decision metadata includes actor/time information.
-
-## TEST-TOOL-006 - Agent Tool Result Contract
-
-For a simple tool:
-
-```text
-Agent
-  ↓
-Tool
-  ↓
-Store Tool Output / Variable Path
-  ↓
-Downstream node
-  ↓
-Output
-```
-
-Test separately:
-
-- normal tool result,
-- `Store Tool Output`,
-- variable path,
-- `Return Direct`,
-- Response Filtering,
-- tool-level Human-in-the-Loop,
-- State Update.
-
----
-
-# 12. Current Verified Architecture
-
-```mermaid
-flowchart TD
-    START[START] --> SYS[System state]
-    SYS --> HITL[Human Input / Approval]
-    HITL --> FLOW[Flow Variables]
-    FLOW --> DOWN[Downstream nodes]
-    DOWN --> FLOW
-    FLOW --> OUT[Output]
-    OUT --> USER[User Window]
-
-    CH[Conversation History] -. conversational context .-> DOWN
-    RT[Runtime metadata] -. execution context .-> DOWN
-```
-
-### Current architectural rule
-
-> **System and Runtime provide engine context. Flow Variables carry workflow state. Conversation History carries conversational context. Nodes can expose runtime outputs, but downstream data paths should be explicit. Output requires an explicit response source, which is then surfaced to the User Window.**
-
----
-
-# 13. Evidence Handling Rule
-
-When later evidence conflicts with an earlier assumption:
-
-1. Keep the earlier observation in the test history.
-2. Mark it as `SUPERSEDED` or `CONTRADICTED`.
-3. Record the newer runtime evidence.
-4. Update the platform understanding document.
-5. Never silently delete a failed test that explains why the current design exists.
-
-This keeps the repository useful as a reverse-engineering record rather than merely a final-state design document.
-
----
-
-# 14. Latest Runtime Evidence Record - 23 Aug 2026 14:17:54 UTC
-
-The latest execution returned:
+The execution returned:
 
 ```json
 {
@@ -574,47 +199,359 @@ The latest execution returned:
 }
 ```
 
+The checkpoint state explicitly recorded:
+
+```text
+hitlType = human_input
+message = Please enter "START_TEST"
+variableTarget = system.humanInput
+```
+
 The User Window displayed:
 
 ```text
 START_TEST
 ```
 
-### Important correction to the test record
+## 4.4 Key observation
 
-This execution demonstrates that **Output returned `START_TEST` even though the final `flow.startTestResponse` shown in the execution envelope was empty**.
-
-Therefore, the earlier assumption that this particular run proves a complete runtime path of:
+The final execution envelope simultaneously showed:
 
 ```text
-Human Input
-    ↓
+flow.startTestResponse = ""
+system.humanInput = "START_TEST"
+output.messages = "START_TEST"
+```
+
+Therefore, the Flow Variable was not required for this particular successful output path.
+
+## 4.5 What this proves
+
+**Runtime Confirmed for this exact path:**
+
+1. Human Input can write to `system.humanInput`.
+2. The value survives the HITL pause/resume.
+3. Output can consume `{{system.humanInput}}` directly.
+4. Output can return the resolved value as `output.messages`.
+5. The User Window displays the resolved value.
+
+## 4.6 What this does NOT prove
+
+This run does **not** prove that Output automatically searches System variables. The Output node was explicitly configured with:
+
+```text
+{{system.humanInput}}
+```
+
+It also does not prove identical lifecycle semantics between built-in System variables and user-created Flow Variables.
+
+### Status
+
+**PASS - Runtime Confirmed**
+
+---
+
+# 5. Comparison - Flow Variable vs System Variable Output Path
+
+| Aspect | TEST-START-001 | TEST-START-002 |
+|---|---|---|
+| Human Input target | `flow.startTestResponse` | `system.humanInput` |
+| Human response | `START_TEST` | `START_TEST` |
+| Final target state | Flow Variable populated in preceding Flow-target run | System variable populated |
+| Output expression | `{{flow.startTestResponse}}` | `{{system.humanInput}}` |
+| Output success | Yes | Yes |
+| `output.messages` | `START_TEST` | `START_TEST` |
+| User Window | `START_TEST` | `START_TEST` |
+| Current status | Runtime Partial pending isolated linkage test | Runtime Confirmed for exact path |
+
+### Updated architectural implication
+
+The evidence now supports the more precise rule:
+
+> **The Output node requires an explicit response source. The source is not limited to Flow Variables; at least the built-in `system.humanInput` variable can be addressed explicitly.**
+
+The full set of supported response-source expressions remains to be mapped.
+
+---
+
+# 6. Earlier Failure - No Explicit Output Mapping
+
+An earlier run had:
+
+```text
+START success = true
+Human Input success = true
+system.humanInput = START_TEST
+workflow status = completed
+```
+
+but the User Window returned:
+
+```text
+No response content found in the execution result. Please try again.
+```
+
+This is retained as a valuable regression case.
+
+### Current interpretation
+
+The failure occurred because the intended response value had not been explicitly configured as the Output response source.
+
+### Status
+
+**SUPERSEDED as a working explanation, retained as regression evidence.**
+
+The direct `{{system.humanInput}}` test now provides controlled evidence that explicit response-source configuration resolves the response correctly.
+
+---
+
+# 7. Important Runtime Findings
+
+## 7.1 Flow Variables are real runtime state
+
+The earlier Flow-target Human Input test demonstrated that a user-created Flow Variable can contain the Human Input response and appear in runtime `flow` state.
+
+## 7.2 Built-in System variables can be explicit response sources
+
+TEST-START-002 demonstrates direct consumption of:
+
+```text
+{{system.humanInput}}
+```
+
+by the Output node.
+
+## 7.3 Output resolution is explicit
+
+The current evidence supports this model:
+
+```text
+Node / HITL produces value
+        ↓
+Addressable runtime variable
+        ↓
+Output configured with explicit response source
+        ↓
+output.messages
+        ↓
+User Window
+```
+
+## 7.4 Node output and workflow state are separate surfaces
+
+Human Input exposes node-level runtime values such as:
+
+```text
+nodes.human_input_0.input
+nodes.human_input_0.variableTarget
+```
+
+while the targeted value is also visible in workflow/runtime state:
+
+```text
 flow.startTestResponse
-    ↓
+```
+
+or:
+
+```text
+system.humanInput
+```
+
+## 7.5 Conversation History is not the same as workflow state
+
+The tested execution retained the original START message (`hello`) in root `conversationHistory`. The Human Input response did not automatically become an ordinary root conversation message.
+
+Therefore:
+
+```text
+Conversation History ≠ Workflow State
+```
+
+---
+
+# 8. Regression Test - Explicit vs Missing Output Source
+
+## TEST-OUTPUT-001
+
+### Case A - Missing response source
+
+Run START and Human Input, but leave Output without an explicit response source.
+
+Expected based on the earlier observed run:
+
+```text
+No response content found in the execution result. Please try again.
+```
+
+Status:
+
+**PENDING intentional rerun**
+
+### Case B - Explicit System variable
+
+```text
+{{system.humanInput}}
+```
+
+Observed:
+
+```text
+START_TEST
+```
+
+Status:
+
+**Runtime Confirmed through TEST-START-002**
+
+### Case C - Explicit Flow variable
+
+```text
+{{flow.startTestResponse}}
+```
+
+with the Flow Variable populated by Human Input.
+
+Status:
+
+**PENDING controlled rerun to isolate and prove the Flow Variable → Output linkage.**
+
+---
+
+# 9. Next End-to-End Tests
+
+## TEST-FLOW-002 - Flow Variable Lifecycle
+
+```text
+Create Flow Variable
+      ↓
+Write value
+      ↓
+Read value downstream
+      ↓
+Return value
+```
+
+Objective: prove create → write → read → output without Human Input being the only writer.
+
+## TEST-SYSTEM-003 - Built-in vs Custom System Variable
+
+Test a user-created System-scope variable against built-in `system.humanInput`.
+
+Questions:
+
+- Can it be written by State Update?
+- Does it persist across node boundaries?
+- Does it survive HITL resume?
+- Is it addressable with the same expression syntax?
+- Does it become read-only in the Variables UI?
+
+## TEST-AGENT-004 - Agent Output Contract
+
+```text
+START
+  ↓
+Agent
+  ↓
+Explicit response source / Flow Variable
+  ↓
 Output
 ```
 
-is too strong based on this latest evidence.
+Determine the Agent node runtime output, variable mapping, and Output consumption contract.
 
-The evidence now supports two separate confirmed facts:
+## TEST-APPROVAL-005 - Approval Contract
 
-1. **Human Input can write to a Flow Variable when configured with `variableTarget = flow.startTestResponse`**, as demonstrated by the preceding successful execution.
-2. **Output can produce `START_TEST` from the current execution even when the displayed final `flow.startTestResponse` is empty**, so the exact Output resolution path in this run is not yet fully proven.
+```text
+START
+  ↓
+APPROVAL
+  ├── Approved → continuation
+  └── Rejected → alternative/end
+```
 
-### Revised status
+Determine exact decision value, routing, resume state and metadata.
 
-**TEST-START-001: PASS - Runtime Partial**
+## TEST-TOOL-006 - Agent Tool Result Contract
 
-The START and Human Input behaviours are runtime-confirmed. Final Output visibility is runtime-confirmed. However, this latest execution means the exact variable-to-output linkage requires one additional controlled test.
+Test normal tool result, Store Tool Output, Variable Path, Return Direct, Response Filtering, tool-level HITL, and State Update.
 
-### Required follow-up
+---
 
-Run a controlled test in which:
+# 10. Current Verified Architecture
 
-- Human Input targets `flow.startTestResponse`.
-- No alternate response source is configured anywhere.
-- Output is explicitly configured to consume only `flow.startTestResponse`.
-- Capture the full execution JSON immediately before Output and after Output.
-- Confirm that `flow.startTestResponse == "START_TEST"` at the point Output resolves it.
+```mermaid
+flowchart TD
+    START[START] --> SYS[System state]
+    SYS --> HITL[Human Input / Approval]
+    HITL --> STATE[Addressable workflow/runtime state]
+    STATE --> OUT[Output with explicit response source]
+    OUT --> USER[User Window]
 
-Only then should the complete Flow Variable → Output linkage be marked **Runtime Confirmed**.
+    FLOW[Flow Variables] -. supported workflow state .-> STATE
+    SYS2[System variables] -. addressable runtime state .-> STATE
+    CH[Conversation History] -. conversational context .-> STATE
+    RT[Runtime metadata] -. execution context .-> STATE
+```
+
+### Current architectural rule
+
+> **System and Runtime provide engine context. Flow Variables carry workflow state. Conversation History carries conversational context. Nodes can expose runtime outputs, but downstream data paths should be explicit. The Output node requires an explicit response source, and that source can be a Flow Variable or another addressable runtime variable.**
+
+---
+
+# 11. Evidence Handling Rule
+
+When later evidence conflicts with an earlier assumption:
+
+1. Keep the earlier observation in the test history.
+2. Mark it as `SUPERSEDED` or `CONTRADICTED`.
+3. Record the newer runtime evidence.
+4. Update the platform understanding document.
+5. Never silently delete a failed test that explains why the current design exists.
+
+---
+
+# 12. Latest Runtime Evidence Record - TEST-START-002
+
+**Execution time:** 23 Aug 2026 14:17:54 UTC  
+**Input:** `hello`  
+**Human response:** `START_TEST`
+
+Controlled configuration:
+
+```text
+Human Input → system.humanInput
+Output → {{system.humanInput}}
+```
+
+Key returned state:
+
+```text
+flow.startTestResponse = ""
+system.humanInput = "START_TEST"
+nodes.human_input_0.input = "START_TEST"
+nodes.human_input_0.variableTarget = "system.humanInput"
+nodes.human_input_0.success = true
+nodes.output_0.success = true
+nodes.output_0.output.messages = "START_TEST"
+status = completed
+```
+
+User Window:
+
+```text
+START_TEST
+```
+
+### Final status
+
+**TEST-START-002: PASS - Runtime Confirmed**
+
+This is the authoritative runtime evidence for:
+
+```text
+Human Input → system.humanInput → explicitly configured Output → User Window
+```
+
+The Flow Variable path remains separate and should not be inferred from this result.
