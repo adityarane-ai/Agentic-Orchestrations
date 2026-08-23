@@ -1,40 +1,42 @@
 # 11. Runtime Variables, State & End-to-End Test Playbook
 
-**Document Version:** 1.0  
-**Status:** Confirmed platform evidence baseline + runtime test methodology  
-**Scope:** QI Studio orchestration variable scopes, node outputs, state propagation and repeatable end-to-end testing.
+**Document Version:** 1.1  
+**Status:** Current runtime-evidence baseline + test methodology  
+**Updated:** 23 Aug 2026
 
 ## 1. Purpose
 
-This document establishes the current understanding of how QI Studio separates platform-managed variables, workflow-owned state, conversation history and runtime metadata. It also defines the testing pattern to use while reverse-engineering node behaviour.
+This document defines the current runtime model used while reverse-engineering QI Studio orchestration.
 
-The key principle is:
+The key rule is:
 
-> **A node executing successfully is not the same as a workflow producing the intended user-visible output.**
->
-> Execution state must be explicitly mapped into Flow Variables or node/output contracts before downstream nodes can reliably consume it.
+> **Node execution success, node output, workflow state and final user-visible response are separate concerns.**
+
+A downstream node must have an explicit data path to the value it needs, and the Output node must have an explicit response source.
+
+For the authoritative current state and unresolved items, see [`13 - Current Understanding & Verification Ledger.md`](13%20-%20Current%20Understanding%20%26%20Verification%20Ledger.md).
 
 ---
 
-# 2. Variable Scope Model
+# 2. Variable Areas
 
-The Variables UI exposes five logical areas:
+The Variables UI exposes five logical views:
 
-1. **Flow**
-2. **System**
-3. **Conversation History**
-4. **Runtime**
-5. **All** as the aggregate view
+1. Flow
+2. System
+3. Conversation History
+4. Runtime
+5. All
 
-These areas should not be treated as interchangeable storage locations.
+They should not be treated as interchangeable storage.
 
 ## 2.1 Flow Variables
 
-Flow variables are orchestration-owned state created through the Variables UI.
+Flow Variables are workflow-owned variables created through the separate Variables UI.
 
-The Add New Variable dialog confirms:
+Observed configuration fields:
 
-| Property | Confirmed options |
+| Property | Observed |
 |---|---|
 | Variable Name | User-defined |
 | Type | String, Number, Boolean, Array, Object |
@@ -42,151 +44,62 @@ The Add New Variable dialog confirms:
 | Description | Optional |
 | Default Value | Optional |
 
-**Current implementation rule:** use **Flow scope** for normal workflow-owned state unless System-scope custom variables have been explicitly tested and documented.
+Current rule:
 
-Examples:
-
-- `flow.startTestResult`
-- `flow.agentResult`
-- `flow.approvalDecision`
-- `flow.evaluationConfiguration`
-- `flow.evaluationResult`
+> Use Flow scope for ordinary workflow state unless System-scope custom-variable behaviour is separately runtime-tested.
 
 ## 2.2 System Variables
 
-The Variables UI currently exposes eight system variables. They are marked read-only.
+Observed built-in runtime/context variables include:
 
-| System variable | Type | Meaning | Ownership |
-|---|---|---|---|
-| `system.userQuery` | string | User's incoming request | Engine |
-| `system.sessionId` | string | Current session identifier | Engine |
-| `system.timestamp` | number | Execution timestamp / epoch representation | Engine |
-| `system.dateTime.utcNow` | string | UTC ISO timestamp captured at run start | Engine |
-| `system.attachments` | array | Incoming user attachments | Engine |
-| `system.files` | array | Files available/created within the workflow context | Engine |
-| `system.humanInput` | string | Human input collected during a paused workflow | Engine |
-| `system.uiAction` | object | UI action payload | Engine |
+- `system.userQuery`
+- `system.sessionId`
+- `system.dateTime.utcNow`
+- `system.attachments`
+- `system.files`
+- `system.humanInput`
+- `system.uiAction`
 
-These are platform-managed state surfaces. Nodes may populate some of them, but the workflow should not assume they are writable through ordinary Flow Variable updates.
+The UI evidence also showed `system.timestamp`; its exact runtime representation should be treated as environment-specific until separately tested.
 
 ## 2.3 Conversation History
 
-The Variables UI exposes:
+`conversationHistory` represents conversational context. It is not a replacement for explicit workflow state.
 
-`conversationHistory`
-
-Type: `BaseMessage[]` / conversation-history structure.
-
-This represents conversation context rather than ordinary application state.
-
-The UI also indicates that agent nodes can expose per-agent conversation histories in addition to the root conversation history.
-
-**Do not use conversation history as a substitute for explicit Flow Variables.** A workflow value that downstream nodes must reliably consume should have a deliberate variable/state contract.
+The tested execution retained the original START message (`hello`) in conversation history while the Human Input response was represented through HITL/runtime state.
 
 ## 2.4 Runtime Variables
 
-The Runtime tab exposes read-only execution metadata, including:
-
-- `runtime.envVars.baseURL`
-- `runtime.headers.Authorization`
-- `runtime.workflowMetaData.workflowId`
-- `runtime.workflowMetaData.moduleId`
-- `runtime.workflowMetaData.bpc`
-- `runtime.workflowMetaData.environment`
-- `runtime.workflowMetaData.version`
-- `runtime.workflowMetaData.agentName`
-
-Runtime variables describe where/how the orchestration is executing. They should be treated as metadata, not business state.
-
-## 2.5 Scope Decision Rule
-
-Use the following default classification:
-
-| Requirement | Correct location |
-|---|---|
-| User request supplied at run start | System |
-| Session / engine metadata | System / Runtime |
-| Current conversation messages | Conversation History |
-| Workflow business state | Flow |
-| Deterministic calculation result | Flow |
-| Human-confirmed configuration | Flow |
-| Generated report / result object | Flow |
-| Execution environment metadata | Runtime |
-
-### Open question
-
-The UI permits choosing **System** scope in the Add New Variable dialog. The semantics and persistence rules for user-created System-scope variables have not yet been runtime-verified. Until verified, do not use this scope for production workflow state.
+Runtime values describe execution/environment context such as workflow metadata, environment and headers. They should not be treated as business state.
 
 ---
 
-# 3. Node Output vs Workflow Variable
+# 3. Human Input Runtime Contract
 
-A node can expose output values without those values automatically becoming the final user-visible response.
+Confirmed UI and runtime behaviour:
 
-The START-node runtime test demonstrated this distinction.
+1. Node pauses orchestration.
+2. A human is prompted.
+3. The response is captured.
+4. The configured target is recorded in the HITL checkpoint.
+5. Execution resumes.
+6. The response is available through the configured state surface.
 
-Example execution state:
-
-```text
-nodes.start.success = true
-nodes.start.interface.inputs.message = "hi"
-system.userQuery = "hi"
-```
-
-A Human Input step subsequently produced:
+Observed runtime structure:
 
 ```text
-nodes.human_input_0.input = "START_TEST"
-system.humanInput = "START_TEST"
+resumeUserInput.hitlType = human_input
+resumeUserInput.message = ...
+resumeUserInput.variableTarget = ...
+nodes.human_input_0.input = ...
+nodes.human_input_0.variableTarget = ...
+nodes.human_input_0.success = true
 ```
 
-The overall execution completed successfully, but the Output node initially returned:
-
-`No response content found in the execution result. Please try again.`
-
-### Root cause
-
-The workflow had successfully collected a value, but the Output node had not been explicitly configured to consume a variable containing the intended final response.
-
-### Confirmed design lesson
-
-> **Execution success, node output and final response are three separate concerns.**
-
-A proper data path is:
+### Runtime-confirmed example
 
 ```text
-Node executes
-    ↓
-Node produces output
-    ↓
-Output/state contract captures the value
-    ↓
-Flow Variable or downstream node consumes the value
-    ↓
-Output node is explicitly configured to return it
-```
-
----
-
-# 4. Confirmed Human Input Behaviour
-
-The Human Input node documentation and UI show:
-
-- It pauses orchestration.
-- It asks a person a free-form question.
-- It stores the answer into a configured variable.
-- The displayed example uses `system.humanInput`.
-- Its output variables include `input` and `variableTarget`.
-- It can expose State Update configuration.
-
-A runtime test confirmed the following:
-
-```json
-{
-  "hitlType": "human_input",
-  "message": "Please enter \"START_TEST\"",
-  "variableTarget": "system.humanInput"
-}
+Human Input → system.humanInput
 ```
 
 After the user entered `START_TEST`:
@@ -195,251 +108,233 @@ After the user entered `START_TEST`:
 system.humanInput = START_TEST
 ```
 
-And the node reported success:
+---
 
-```text
-nodes.human_input_0.success = true
-```
+# 4. Output Runtime Contract
 
-### Human Input vs Approval
+The Output node does not appear to infer a response from arbitrary execution state.
 
-Use Human Input when the workflow needs information.
-
-Use Approval when the workflow needs a binary decision with routing.
+### Confirmed path
 
 ```text
 Human Input
-    answer → variable
-
-Approval
-    Approve → Approved route
-    Reject  → Rejected route
+    ↓
+system.humanInput = START_TEST
+    ↓
+Output configured as {{system.humanInput}}
+    ↓
+output.messages = START_TEST
+    ↓
+User Window = START_TEST
 ```
+
+### Regression case
+
+A previous execution completed successfully but the user-facing layer returned:
+
+```text
+No response content found in the execution result. Please try again.
+```
+
+At that time, the intended response value had not been explicitly configured as the Output response source.
+
+This supports the current rule:
+
+> **Output requires an explicit response source.**
+
+The complete set of expressions accepted by Output is still being mapped.
 
 ---
 
-# 5. START Node End-to-End Test
+# 5. Flow Variable Runtime Contract
 
-## 5.1 Objective
+A Human Input execution was also observed with:
 
-Verify that the START node correctly accepts its inputs, exposes them through runtime state, and can pass information to a downstream node and ultimately to the Output node.
+```text
+variableTarget = flow.startTestResponse
+```
 
-## 5.2 Minimal test flow
+and an execution state containing:
+
+```text
+flow.startTestResponse = START_TEST
+```
+
+The current repository deliberately does **not** treat this alone as a fully isolated Flow Variable → Output proof because the later controlled System-variable test produced the same final response through an explicitly referenced System variable.
+
+Therefore the Flow path is currently:
+
+**Runtime Partial / controlled rerun required**
+
+The isolated test should be:
 
 ```text
 START
   ↓
-HUMAN INPUT
+Human Input → flow.testResponse
   ↓
-FLOW VARIABLE ASSIGNMENT
-  ↓
-OUTPUT
+Output → {{flow.testResponse}}
 ```
 
-## 5.3 Test configuration
-
-### START
-
-Message:
-
-```text
-hi
-```
-
-Expected observable state:
-
-```text
-system.userQuery = "hi"
-```
-
-### HUMAN INPUT
-
-Question:
-
-```text
-Please enter START_TEST
-```
-
-Save response as:
-
-```text
-system.humanInput
-```
-
-Expected observable state:
-
-```text
-system.humanInput = "START_TEST"
-```
-
-### FLOW VARIABLE
-
-Create:
-
-```text
-Name: startTestResult
-Type: String
-Scope: Flow
-Description: Stores the result of the START node end-to-end test.
-```
-
-The test flow should explicitly copy:
-
-```text
-flow.startTestResult = system.humanInput
-```
-
-### OUTPUT
-
-Configure the Output node to consume:
-
-```text
-flow.startTestResult
-```
-
-Expected user-visible result:
-
-```text
-START_TEST
-```
-
-## 5.4 Pass criteria
-
-The test passes only when all of the following are true:
-
-1. START executes successfully.
-2. The original input is visible in the expected system state.
-3. Human Input pauses and resumes correctly.
-4. The entered response appears in `system.humanInput`.
-5. The response is explicitly transferred into a Flow Variable.
-6. The Output node explicitly consumes that Flow Variable.
-7. The user sees `START_TEST` as the final response.
-
-## 5.5 Failure interpretation
-
-| Observation | Likely problem |
-|---|---|
-| START fails | START configuration or runtime issue |
-| START succeeds but no userQuery | Input/state exposure issue |
-| Human Input does not pause | HITL/resume issue |
-| Human Input succeeds but variable is empty | Save Response As / variable-target issue |
-| Flow variable is empty | Missing State Update / assignment path |
-| Everything executes but Output says no response content | Output node has no response variable configured |
+with no dependency on `system.humanInput`.
 
 ---
 
-# 6. General Node Test Pattern
+# 6. Flow Variable Design Rules
 
-Every node should be tested at four levels.
+These are architecture rules for the solution, not claims that every UI state mutation has already been runtime-tested.
+
+1. Create workflow-owned variables in the Variables UI.
+2. Give each important Flow Variable one intentional producer.
+3. Treat shared state as explicit data contracts between nodes.
+4. Prefer Flow scope for workflow business state.
+5. Keep deterministic result variables distinct from semantic recommendations.
+6. Preserve provenance/confidence where inference is involved.
+7. Do not use Conversation History as a hidden state store.
+
+---
+
+# 7. Knowledge Tool Initialization Rule
+
+A directly supplied tool definition adds an important mandatory sequence that supersedes older wording:
+
+```text
+Knowledge-related agent invocation
+        ↓
+get-knowledge-workflow-instructions
+        ↓
+get_library_metadata
+        ↓
+source-specific knowledge tools
+```
+
+For data-search knowledge, the known sequence continues:
+
+```text
+get_library_metadata
+        ↓
+get_data_search_fields
+        ↓
+execute_search_query
+```
+
+If `default_filters` are supplied by the data-search schema, they are described as mandatory access-control constraints and must be preserved in later search execution.
+
+---
+
+# 8. General End-to-End Test Pattern
+
+Each node should be understood at four levels.
 
 ## Level 1 - UI Contract
 
-Record:
+Capture:
 
-- visible configuration fields
-- parameter types
-- required/optional flags
-- available output variables
-- available state updates
-- routing handles
-- advanced options
+- visible fields;
+- input types;
+- required/optional flags;
+- output variables;
+- state-update controls;
+- routing handles;
+- advanced options.
 
 ## Level 2 - Runtime Contract
 
-Run the smallest possible test and record:
+Capture:
 
-- node input
-- node output
-- node success/failure
-- state changes
-- variable changes
-- pause/resume metadata, if applicable
+- node input;
+- node output;
+- success/failure;
+- state changes;
+- pause/resume metadata.
 
 ## Level 3 - Downstream Contract
 
-Test whether another node can actually consume the value.
+Verify that another node can actually consume the produced value.
 
-A value existing in raw execution JSON is not enough.
+A value merely appearing in raw execution JSON is not enough.
 
 ## Level 4 - User-visible Contract
 
-Verify the actual final behaviour presented to the person interacting with the orchestration.
+Verify the actual final behaviour shown to the user.
 
-Only after Level 4 should behaviour be marked runtime-confirmed.
+Only after Level 4 should a path be marked Runtime Confirmed.
 
 ---
 
-# 7. Evidence Recording Standard
+# 9. High-Information Test Plan
 
-Each investigated capability should be recorded with:
+Use eight tests rather than many repetitive tests:
+
+### T1 - START → Output
+
+Baseline START input, `system.userQuery`, and explicit Output mapping.
+
+### T2 - START → Human Input(system) → Output
+
+Runtime-confirmed HITL path using `system.humanInput`.
+
+### T3 - START → Human Input(flow) → Output
+
+Isolated Flow Variable path. This is the immediate next test.
+
+### T4 - Variable lifecycle
+
+Create → write → read → transform → output without relying on Human Input as the only writer.
+
+### T5 - Condition / branching
+
+Execute the same condition flow once with a true value and once with a false value.
+
+### T6 - Approval
+
+Approve and reject the same flow to establish decision value, routing and resume behaviour.
+
+### T7 - Agent → Tool → State → Output
+
+Use one deterministic tool and compare Store Tool Output vs Return Direct while observing Variable Path and state.
+
+### T8 - Composite workflow
+
+Knowledge initialization → retrieval → tool → HITL → export/file handling → Output.
+
+This sequence is intentionally optimized for maximum understanding per test.
+
+---
+
+# 10. Evidence Recording Template
+
+For every test record:
 
 ```text
-Node / Tool
-Purpose
-UI evidence
-Observed configuration
-Input contract
-Output contract
-State effects
-Routing effects
-Runtime evidence
-Known limitations
-Open questions
-Test case
-Expected result
-Actual result
+Test ID
+Objective
+Graph topology
+Configuration
+Input
+Checkpoint/HITL data
+Flow state
+System state
+Node outputs
+Downstream consumption
+Final user-visible result
 Status
+Interpretation
+Open questions
 ```
 
-Use these statuses consistently:
-
-- **Confirmed** - directly demonstrated by supplied UI/platform evidence.
-- **Working understanding** - strongly supported interpretation, not yet fully runtime-proven.
-- **Runtime confirmed** - successfully demonstrated in an execution test.
-- **Pending evidence** - capability known but insufficient evidence.
-- **Contradicted** - a prior assumption was disproven by later evidence.
-
 ---
 
-# 8. Current Verified State Architecture
+# 11. Status Rules
 
-```mermaid
-flowchart TD
-    START[START node] --> SYS[System variables]
-    SYS --> HITL[Human Input / Approval]
-    HITL --> FLOW[Flow Variables]
-    FLOW --> NODES[Downstream nodes]
-    NODES --> FLOW
-    FLOW --> OUT[Output node]
+| Status | Meaning |
+|---|---|
+| PASS - Runtime Confirmed | Full intended path demonstrated end-to-end. |
+| PASS - Runtime Partial | Important part works but a material linkage/edge case remains untested. |
+| FAIL | Expected behaviour not achieved. |
+| BLOCKED | Another required component/configuration was missing. |
+| PENDING | Test designed but not executed. |
+| SUPERSEDED | Earlier interpretation replaced by stronger evidence. |
+| CONTRADICTED | Earlier assumption directly disproven. |
 
-    CH[Conversation History] -. context .-> NODES
-    RT[Runtime metadata] -. execution context .-> NODES
-```
-
-The architectural rule is:
-
-> **System and Runtime provide engine context. Flow Variables carry workflow state. Conversation History carries conversational context. Output requires an explicit response source.**
-
----
-
-# 9. Immediate Next Tests
-
-1. **Flow Variable lifecycle**: create → write → read → output.
-2. **Output node contract**: identify exactly how variables are selected as final response content.
-3. **State Update semantics**: confirm how a node writes to a Flow Variable.
-4. **System-scope custom variable**: determine whether user-created System variables are permitted, persistent, writable and exposed like built-in System variables.
-5. **Agent node**: test how agent output maps into Flow Variables and Output.
-6. **Approval node**: verify decision value, routing and resume state.
-7. **Tool node**: verify tool result storage, variable path, Return Direct and Response Filtering.
-
----
-
-# 10. Non-Negotiable Testing Rule
-
-Never mark a node as fully understood solely because:
-
-- the UI displays an option,
-- the node returns `success: true`, or
-- a value exists somewhere in the execution JSON.
-
-A capability is considered **runtime confirmed** only after the full intended data path has been demonstrated end-to-end.
+Never upgrade a UI-only observation to Runtime Confirmed.
