@@ -1,12 +1,14 @@
 # 07. QI Studio Orchestration Blueprint
 
-**Document Version:** 1.3
-
-**Status:** Implementation Baseline — Deep Agent + GEP Knowledge + HITL + Deterministic Evaluation
+**Document Version:** 1.4  
+**Status:** Business architecture + implementation baseline  
+**Updated:** 23 Aug 2026
 
 ## Purpose
 
 The canvas remains compact. The primary orchestration intelligence lives inside one Master Deep Agent. The Master has three direct specialist sub-agents and uses Knowledge Library tools for GEP internal domain knowledge. Deterministic processing handles validation, confirmed knockout rules, calculations and ranking.
+
+This document defines the **solution architecture**. It does not claim that every QI Studio runtime capability shown here has already been runtime-tested.
 
 ## Canvas-Level Architecture
 
@@ -31,20 +33,38 @@ flowchart LR
 
 The Master shall:
 
-- understand intent
-- plan and decompose tasks
-- dynamically delegate to specialists
-- exploit parallelism for independent tasks
-- respect dependencies
-- use file/document capabilities
-- use Knowledge Library tools when relevant
-- generate the Bid Clarification Package
-- obtain human confirmation
-- challenge specialist outputs
-- request targeted re-analysis
-- synthesize the final procurement result
+- understand intent;
+- plan and decompose tasks;
+- dynamically delegate to specialists;
+- exploit parallelism for independent tasks;
+- respect dependencies;
+- use file/document capabilities;
+- initialize and use Knowledge Library tools according to the current knowledge workflow;
+- generate the Bid Clarification Package;
+- obtain human confirmation;
+- challenge specialist outputs;
+- request targeted re-analysis;
+- synthesize the final procurement result.
 
-Tool discovery is conditional. It is not a mandatory first step.
+Tool discovery for **system actions** is conditional on needing such an action, but when a system action is needed the supplied system-tool contract requires the sequence:
+
+```text
+SearchSystemTools
+      ↓
+GetSystemToolSchema
+      ↓
+ExecuteSystemTool
+```
+
+Knowledge-related agent invocations have a separate mandatory initialization rule:
+
+```text
+get-knowledge-workflow-instructions
+      ↓
+get_library_metadata
+      ↓
+source-specific knowledge tools
+```
 
 ## Specialist 1 — RFP & Evaluation Criteria Analyst
 
@@ -64,27 +84,19 @@ It produces semantic score recommendations, evidence, rationale, strengths, weak
 
 ## GEP Knowledge Library
 
-GEP knowledge is a **capability/tool layer**, not a fourth sub-agent.
-
-Expected knowledge may include:
-
-- category toolkits
-- category playbooks
-- procurement methodologies
-- evaluation guidance
-- benchmarks
-- negotiation guidance
-- internal terminology/reference material
+GEP knowledge is a capability/tool layer, not a fourth sub-agent.
 
 ### Knowledge rules
 
-1. Follow the platform's knowledge workflow instructions.
-2. Retrieve only relevant knowledge for the task.
-3. Preserve knowledge source references where material.
-4. Use knowledge as context, benchmark or guidance.
-5. Never silently override the RFP.
-6. Never silently create a knockout, weight or acceptance condition from knowledge alone.
-7. Human confirmation is required for material business-rule changes.
+1. For any knowledge-related agent invocation, call `get-knowledge-workflow-instructions` first.
+2. Call `get_library_metadata` after that initialization step.
+3. Use only the tools permitted by the returned knowledge metadata/`target_functions`.
+4. For data-search knowledge, call `get_data_search_fields` before search execution.
+5. Preserve mandatory `default_filters` exactly when returned for a data-search source.
+6. Never fabricate IDs, schema fields or relationships.
+7. Use knowledge as context, benchmark or guidance.
+8. Never silently override the RFP or human-confirmed configuration.
+9. Preserve material source/reference provenance.
 
 ### Authority model
 
@@ -103,7 +115,7 @@ Semantic AI Evaluation
 
 ## Human-in-the-Loop Gate
 
-The Master creates a Bid Clarification Package containing the discovered files, suppliers, evaluation framework, scoring/weights, candidate knockouts, proposed acceptance conditions, GEP context used, ambiguities and missing information.
+The Master creates a Bid Clarification Package containing discovered files, suppliers, evaluation framework, scoring/weights, candidate knockouts, proposed acceptance conditions, GEP context used, ambiguities and missing information.
 
 The user confirms/corrects the understanding and confirms/adds/removes/changes knockout requirements and acceptance conditions.
 
@@ -135,7 +147,6 @@ flowchart TD
     DISC -->|Supplier Evidence| S[Supplier Specialist]
     C --> B[Bid Understanding]
     S --> B
-
     B --> H[Human Confirmation + Knockout Configuration]
     H --> CFG[Frozen Evaluation Configuration]
 
@@ -159,18 +170,16 @@ flowchart TD
     M2 --> D9[D-009 Report Export]
     D9 --> OUT([OUTPUT])
 
-    M -. GEP knowledge .-> KL[Knowledge Library Tools]
+    M -. knowledge initialization/retrieval .-> KL[Knowledge Workflow + Library Tools]
     KL -. context .-> C
     KL -. context .-> E
-    M -. dynamic delegation .-> C
-    M -. dynamic delegation .-> S
 ```
 
 ## Dynamic Delegation Rules
 
 | Request | Behaviour |
 |---|---|
-| Criteria-only | Criteria Specialist; use knowledge if relevant |
+| Criteria-only | Criteria Specialist; initialize/use knowledge only when relevant |
 | Supplier extraction | Supplier Specialist; source-first |
 | Full bid analysis | Criteria + Supplier → HITL → Evaluation |
 | Follow-up explanation | Stored evaluation state; avoid re-extraction |
@@ -205,4 +214,4 @@ Report failure: retry report generation without rerunning evaluation.
 10. GEP knowledge never silently overrides the RFP/configuration.
 11. Specialist outputs are structured and evidence-backed.
 12. Report generation cannot alter evaluation data.
-13. Every deterministic stage returns explicit status/errors.
+13. Runtime-specific QI Studio behaviour must be validated separately from this business architecture.
