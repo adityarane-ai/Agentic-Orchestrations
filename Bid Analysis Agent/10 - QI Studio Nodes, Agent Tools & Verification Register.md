@@ -1,63 +1,59 @@
 # 10. QI Studio Nodes, Agent Tools & Verification Register
 
-**Document Version:** 1.1  
-**Status:** Working implementation evidence register  
-**Scope:** QI Studio orchestration nodes and Agent-node tools captured during the current design investigation.
+**Document Version:** 1.2  
+**Status:** Current UI/tool-contract evidence register  
+**Updated:** 23 Aug 2026
 
-This document records what has been explicitly observed or supplied so far. It deliberately separates confirmed platform behaviour from items that still require direct UI evidence or runtime testing.
+This document records platform behaviour that has been explicitly shown in supplied QI Studio screenshots, platform documentation or directly supplied tool definitions. Runtime claims belong in `12 - End-to-End Node Test Log.md`.
+
+For the canonical current understanding and unresolved questions, see `13 - Current Understanding & Verification Ledger.md`.
 
 ---
 
-## 1. Evidence Status Model
+# 1. Evidence Status Model
 
 | Status | Meaning |
 |---|---|
-| Confirmed | Behaviour or configuration explicitly shown in the supplied QI Studio UI or platform documentation excerpt. |
-| Working understanding | Strong implementation interpretation derived from the supplied evidence, but still worth validating at runtime. |
-| Pending evidence | Mentioned or visible as a capability, but detailed behaviour/configuration has not yet been captured. |
-| Runtime validation | Requires an actual execution test rather than UI inspection alone. |
+| Confirmed | Directly shown in UI/platform documentation or tool definition. |
+| Runtime Confirmed | Demonstrated by an actual execution; recorded in the runtime test log. |
+| Working Understanding | Strong interpretation supported by evidence but not fully proven. |
+| Pending Verification | Needs a targeted runtime test or additional evidence. |
+| Contradicted | Older assumption disproven by stronger evidence. |
+| Superseded | Historical statement replaced by newer evidence. |
 
 ---
 
-# 2. Orchestration Nodes Captured
+# 2. Orchestration Nodes
 
-## 2.1 Decision Tree node
+## 2.1 Decision Tree
 
-**Node type:** Decision Tree  
-**Platform status:** Experimental / Alpha, based on supplied UI.
+**Platform status:** Experimental / Alpha based on supplied UI.
 
-### Purpose
+A Decision Tree is a mini flow-builder inside one node. It holds an internal state-driven graph and executes steps based on state.
 
-A Decision Tree is a mini flow-builder inside one node. It allows a state-driven decision graph instead of one fixed action. The runtime walks the internal steps based on state gathered or derived during execution.
-
-### Canvas concepts
-
-- **Start** - entry point for the internal tree.
-- **Add Node / Add step** - adds an internal step.
-- **Fit / Auto-layout** - organizes the graph.
-- **Memory Keys / state** - shared variables read and written by the tree.
-- **Issues / validation** - detects problems such as disconnected steps or missing produced keys.
-
-### Supported step types captured
+### Captured internal steps
 
 | Step | Purpose |
 |---|---|
-| Ask user | Talk to the user, send a message, and capture the response into state. |
-| Tool call | Run a backend tool with templated parameters and write the result into state. |
-| Compute | Derive or transform state without user interaction. |
-| Condition | Branch into different paths based on state. |
-| Done | End the internal flow successfully / at end. |
+| Start | Entry point for the internal tree. |
+| Ask user | Ask a person and capture the reply into state. |
+| Tool call | Invoke a backend tool and write its result into state. |
+| Compute | Derive/transform state without user interaction. |
+| Condition | Branch based on state. |
+| Done | End the internal flow. |
 
-### Cross-step concepts
+### Captured cross-step controls
 
-- **Produces keys** - state keys a step fills when it completes. These help gate ordering and prevent loops.
-- **State / Memory keys** - shared values carried by the tree. Steps read values using `{{path}}` and write or clear state.
-- **Extra conditions** - optional gates in addition to the normal graph path.
-- **Message template** - user-facing text with state interpolation.
-- **Notes for the LLM** - natural-language instructions for interpreting the user's response.
-- **Require reflection before this step fires** - an additional safety pause intended mainly for irreversible actions.
+- Produces keys
+- State / Memory Keys
+- Extra Conditions
+- Message Template
+- Notes for the LLM
+- Require reflection before this step fires
+- Fit / Auto-layout
+- Issues validation
 
-### Condition operators captured
+### Captured condition operators
 
 - Equals
 - Not Equals
@@ -69,141 +65,88 @@ A Decision Tree is a mini flow-builder inside one node. It allows a state-driven
 - Is Empty
 - Is Not Empty
 
-### Decision branch model captured
+### Current status
 
-A condition step may contain named paths. The UI shows path-specific rules and an `else` path. The first matching path wins according to the displayed ordering.
-
-### Status
-
-**Confirmed from supplied platform documentation and UI screenshots.**
-
-### Remaining validation
-
-- Exact runtime state schema for Decision Tree memory keys.
-- Whether all step types expose identical state/update semantics.
-- Exact persistence/serialization format of an internal Decision Tree.
-- Runtime behaviour when a tree has cycles or missing produces keys.
-- Exact limits on tree depth / number of steps / paths.
+**Confirmed UI/platform documentation.** Runtime state schema, cycle behaviour, persistence and limits remain unverified.
 
 ---
 
-## 2.2 Approval node
+## 2.2 Approval
 
-**Node type:** Approval
+Purpose: pause orchestration and wait for human approval/rejection before continuing.
 
-### Purpose
+### Captured configuration
 
-Pauses orchestration and waits for a person to approve or reject before execution continues. This is the human checkpoint intended for sensitive or irreversible actions.
-
-### Configuration captured
-
-| Setting | Observed behaviour |
+| Setting | Evidence |
 |---|---|
-| Approval Message | User-facing message explaining what requires approval. |
-| Approve Button | Customizable approval label. Default shown as `Approve`. |
-| Reject Button | Customizable rejection label. Default shown as `Reject`. |
-| Approved route | Outgoing path used when the user approves. |
-| Rejected route | Outgoing path used when the user rejects. |
-| Advanced | Contains State Update and Output Variables. |
-| Output variable shown | `decision` of type `string`. |
+| Approval Message | User-facing approval request. |
+| Approve Button | Custom label; default shown as `Approve`. |
+| Reject Button | Custom label; default shown as `Reject`. |
+| Approved route | Outgoing path for approval. |
+| Rejected route | Outgoing path for rejection. |
+| State Update | Available. |
+| Output Variables | Available. |
+| Decision | Captured as `decision` string in the supplied UI. |
 
-### Routing rule
-
-The approved handle should connect to the continuation of the workflow. The rejected handle should connect to an alternative path or an end node.
-
-### Example alternative labels
-
-- Send it / Hold
-- Publish / Cancel
-
-### Status
-
-**Confirmed from supplied platform documentation and UI screenshot.**
-
-### Remaining validation
-
-- Exact output schema beyond the displayed `decision` string.
-- Whether approval identity, timestamp, comments, or actor metadata are automatically available.
-- Retry/timeout behaviour if the approver does not respond.
-- Multiple approver / sequential approval support.
-- Whether approval state survives a resumed execution without additional configuration.
+Current status: **Confirmed UI; runtime pending.**
 
 ---
 
-## 2.3 Human Input node
+## 2.3 Human Input
 
-**Node type:** Human Input
+Purpose: pause, ask a person for free-text input, save it to a configured target and continue.
 
-### Purpose
+### Captured configuration
 
-Pauses the workflow, asks a person a free-text question, stores the answer, and allows subsequent orchestration steps to use the response.
-
-### Configuration captured
-
-| Setting | Observed behaviour |
+| Setting | Evidence |
 |---|---|
-| Question | Prompt shown to the person. |
-| Save Response As | Variable holding the response, e.g. `system / humanInput`. |
-| Advanced > State Update | Available. No updates configured in the supplied example. |
-| Output Variables | Includes `input` object and `variableTarget` string in the displayed node. |
+| Question | Prompt shown to the user. |
+| Save Response As | Target variable, e.g. `system.humanInput`. |
+| State Update | Available. |
+| Output Variables | Includes `input` and `variableTarget` in the displayed node output. |
 
-### Conceptual distinction
+Runtime-confirmed exact path is recorded in the test log:
 
-Use **Human Input** for collecting free-form human information.
-
-Use **Approval** for an explicit yes/no decision that routes to Approved or Rejected.
-
-### Status
-
-**Confirmed from supplied platform documentation and UI screenshot.**
-
-### Remaining validation
-
-- Exact response object structure and fields.
-- Handling of attachments or structured widget responses through Human Input.
-- Timeout / cancellation behaviour.
-- Whether the response variable automatically persists across resumed runs.
+```text
+Human Input → system.humanInput → explicit Output → User Window
+```
 
 ---
 
-# 3. Agent Node - Tool Management Model Captured
+# 3. Agent Node Tool-Management UI
 
-The supplied Agent-node tool-management UI shows that tools are attached to an agent and configured individually.
+The supplied Agent-node screenshots confirm the following per-tool controls/capabilities:
 
-## 3.1 Tool configuration fields observed
-
-| Field | Description |
+| Capability | Status |
 |---|---|
-| Tool Name | Lowercase letters, numbers and underscores only. |
-| Description | Natural-language instructions describing the tool's purpose and usage. |
-| Tool Parameters | Parameters configured through Visual Editor or JSON Schema. |
-| Parameter types | `string`, `number`, `boolean`, `object`, `array<string>`, `array<number>`, `array<boolean>`, `array<object>`, `array<array>`. |
-| Required | Per-parameter required toggle is available. |
-| Configure Values | Available for parameter configuration / defaults. |
-| Handoff Target Node | Available for Handoff tools. |
-| State Update | Available to update orchestration state. |
-| Variable Path | Exposed for saving tool results / outputs. |
-| Include Thoughts | Optional per-tool setting. |
-| Human-in-the-Loop | Optional per-tool pause. |
-| Response Filtering | Supports include/exclude field patterns. |
-| Store Tool Output | Optional storage of full response for later use. |
-| Return Direct | Optional direct return of the tool response without further processing. |
+| Tool Name | UI Confirmed |
+| Description | UI Confirmed |
+| Visual Editor / JSON Schema | UI Confirmed |
+| Typed parameters | UI Confirmed |
+| Required flags | UI Confirmed |
+| Configure Values | UI Confirmed |
+| State Update | UI Confirmed |
+| Variable Path | UI Confirmed |
+| Include Thoughts | UI Confirmed |
+| Human-in-the-Loop | UI Confirmed |
+| Response Filtering | UI Confirmed |
+| Store Tool Output | UI Confirmed |
+| Return Direct | UI Confirmed |
+| Handoff Target Node | UI Confirmed for handoff tools |
 
-### Status
-
-**Confirmed from supplied Agent-node configuration screenshots.**
+These are configuration capabilities, not universal runtime semantics. Runtime interactions remain under test.
 
 ---
 
-# 4. Agent Node - System Tool Inventory Captured
+# 4. System Tool Inventory Captured
 
-The supplied `Select Tools` screenshots show the following tools under the **System** tab.
+The supplied System-tab screenshots showed:
 
-## Handoff / orchestration
+### Handoff
 
 1. `Handoff`
 
-## Knowledge tools
+### Knowledge
 
 2. `Get Library Metadata`  
 3. `Get Data Search Fields`  
@@ -214,7 +157,7 @@ The supplied `Select Tools` screenshots show the following tools under the **Sys
 8. `Search Table Data`  
 9. `get-knowledge-workflow-instructions`
 
-## Memory / persistence tools
+### Memory
 
 10. `Recall Memory`  
 11. `Save Memory`  
@@ -222,7 +165,7 @@ The supplied `Select Tools` screenshots show the following tools under the **Sys
 13. `Set In Memory`  
 14. `Get From Memory`
 
-## Export / document tools
+### Export / document
 
 15. `Export PowerPoint V2`  
 16. `Export Excel V2`  
@@ -236,206 +179,433 @@ The supplied `Select Tools` screenshots show the following tools under the **Sys
 24. `Export to PowerPoint`  
 25. `Export to Word`
 
-## Web / communication / files
+### Web / communication / files
 
 26. `Web Search`  
 27. `Send Email`  
 28. `Conversation Attachment`
 
-## System tool discovery / execution
+### System tool discovery / execution
 
 29. `Search System Tools`  
 30. `Get System Tool Schema`  
 31. `Execute System Tool`
 
-### Important inventory note
-
-The screenshots document the **System** tool catalogue visible at the time of capture. The screenshots also show separate `Shared`, `MCP`, and `Quantum MCP` tabs, but no complete inventory for those tabs has yet been captured.
-
-### Status
-
-**Confirmed inventory for visible System-tab tools.**
-
-### Pending evidence
-
-Detailed configuration and runtime semantics have not yet been captured for every tool above. The next detailed tool captures should therefore be added to this register one tool at a time rather than inferred from names alone.
+**Important:** Shared, MCP and Quantum MCP tabs are visible but their complete inventories have not been captured. Do not infer them.
 
 ---
 
-# 5. Detailed Tool Evidence Captured
+# 5. Detailed Tool Contracts Supplied
 
-## 5.1 Handoff
+## 5.1 get-knowledge-workflow-instructions
 
-**Observed tool name:** `handoff_to_node`
+No parameters.
 
-### Description
+Mandatory rule supplied by the tool:
 
-`Hands off execution to the node`
+> Call this tool **FIRST** before any knowledge-related tool, at the start of every agent invocation involving knowledge sources.
 
-### Configuration captured
-
-- Tool name: `handoff_to_node`
-- Description: `Hands off execution to the node`
-- Tool parameters are configurable.
-- Parameter editor supports typed fields.
-- Handoff Target Node selector is available.
-- State Update section is available.
-- Variable path is exposed for the tool result.
-- Advanced options include **Include Thoughts** and **Human-in-the-Loop**.
-
-### Evidence from screenshot
-
-The configured variable path is shown in the form:
-
-```text
-{{nodes.<agent_node>....toolResults.handoff_to_node}}
-```
-
-The exact node identifier is environment-specific and should not be hard-coded into the generic platform specification.
-
-### Status
-
-**Confirmed UI capability; runtime semantics still require testing.**
-
-### Pending
-
-- Exact required input contract for the handoff target.
-- Exact output contract.
-- Whether handoff immediately terminates the current agent execution context.
-- Behaviour when target node is unavailable or misconfigured.
-- Interaction with tool-level Human-in-the-Loop.
+This supersedes older wording that treated `get_library_metadata` as the first knowledge call.
 
 ---
 
-## 5.2 Get Library Metadata
+## 5.2 BraveWebSearch / Web Search
 
-**Tool name**
+**Tool name:** `BraveWebSearch`
 
-```text
-get_library_metadata
-```
+### Inputs
 
-### Purpose
+| Parameter | Type | Required |
+|---|---|---|
+| `query` | string | Yes |
+| `searchFromDate` | date-time or null | Yes |
 
-Retrieves metadata for one or more knowledge libraries so the agent can identify the applicable knowledge sources before using source-specific knowledge tools.
+### Output
 
-### Captured operating instructions
+A list of search results with:
 
-The supplied configuration contains the following workflow:
+- `Name`
+- `Link`
+- `Value`
 
-1. **Always start here** - call `get_library_metadata` before responding to a knowledge-dependent request and do not proceed until metadata is retrieved.
-2. **Identify knowledge sources** - parse the returned JSON array and extract source-level metadata.
-3. **For data-search knowledge** - call `get_data_search_fields` for full schema and enforcement rules.
-4. **Knowledge selection** - use the source description and knowledge name to determine which source is applicable.
-5. **Call only allowed tools** - `target_functions` defines the exact tools permitted for a knowledge source.
+The supplied contract states that if search results are used in the final answer, their links must also be included through the tool's `citations` path.
 
-### Response fields documented in the tool description
-
-- `library_id`
-- `knowledge_id`
-- `knowledge_name`
-- `description`
-- `knowledge_type`
-- `target_functions`
-
-For data-search knowledge, additional context can include:
-
-- `module_id`
-- `entity`
-- `app_name`
-- `app_display_name`
-- `module_name`
-- `module_display_name`
-- `app_category`
-- `data_search_description`
-- `default_filters` when configured
-
-### Hard rules captured
-
-- Never fabricate IDs, column names, values, or relationships.
-- Never mix tools across different knowledge sources.
-- Never use LLM training data to fill knowledge-data gaps; use only retrieved content.
-- Copy IDs and parameters exactly as returned by metadata.
-- For data-search rows with `default_filters`, follow the enforcement rules returned by `get_data_search_fields`.
-
-### Parameter
-
-```text
-library_ids: array<string>
-```
-
-The supplied UI shows this parameter as read-only and allows the agent to decide its value.
-
-### Advanced settings observed
-
-- Include Thoughts: ON
-- Response Filtering: Exclude Fields
-- Field Patterns: empty in captured example
-- Store Tool Output: OFF
-- Return Direct: OFF
-- Human-in-the-Loop: OFF
-
-### Status
-
-**Confirmed from supplied tool configuration screenshot.**
+Status: **Tool contract confirmed; runtime pending.**
 
 ---
 
-## 5.3 Get Data Search Fields
+## 5.3 Store / Set In Memory
 
-**Tool name**
+**Tool name:** `Store`
+
+### Inputs
 
 ```text
-get_data_search_fields
+key: string
+value: any
 ```
 
-### Purpose
+Both required.
 
-Returns the schema for a `data-search` knowledge source, including allowed fields, owning application/module context, and mandatory filters when configured.
+The tool description explicitly restricts use to cases where there are clear instructions to store data in memory.
+
+Status: **Tool contract confirmed; runtime pending.**
+
+---
+
+## 5.4 Retrieve / Get From Memory
+
+**Tool name:** `Retrieve`
 
 ### Input
 
 ```text
-knowledge_id: string
+key: string
 ```
 
-The `knowledge_id` must come from `get_library_metadata`.
+Required.
 
-### Returns
+Returns the value associated with the key if found.
 
-The tool description documents:
+The description explicitly restricts use to cases where there are clear instructions to retrieve data from memory.
 
-- `knowledge_id`
-- `module_id`
-- `entity`
-- `app_name`
-- `app_display_name`
-- `module_name`
-- `module_display_name`
-- `app_category`
-- `description`
-- `selected_properties`
-- `default_filters` when configured
+Status: **Tool contract confirmed; runtime pending.**
 
-### Data-search execution rules
+---
 
-`module_id` and `entity` are passed into `execute_search_query` unchanged.
+## 5.5 SendEmail
 
-`selected_properties` defines the fields/columns permitted in filters, projections, or aggregations.
+Required:
 
-When `default_filters` exists, it is a pre-serialized JSON string containing an `advancedFilters` array already in `execute_search_query` format.
+```text
+tos
+subject
+emailBody
+```
 
-### Mandatory filter enforcement
+`emailBody` must be complete valid HTML with inline styles. The contract requires closing the email with:
 
-When `default_filters` is present:
+```text
+Regards, GEP Quantum
+```
 
-1. Parse the JSON string.
-2. Include every filter object as-is in `advancedFilters` of every `execute_search_query` call.
-3. AND-compose those mandatory filters with user-supplied filters.
-4. Never drop, omit, weaken, rewrite, or otherwise alter the mandatory filters.
-5. Treat these filters as access-control controls.
+Optional:
 
-### Required workflow
+- `ccs`
+- `bccs`
+- `replyTo`
+- `sender`
+- `attachments`
+
+Recipients contain an `email` plus optional contact metadata. Attachments use:
+
+```text
+{name, id}
+```
+
+Status: **Tool contract confirmed; runtime pending.**
+
+---
+
+## 5.6 ConversationAttachment
+
+Input:
+
+```text
+fileId: string
+```
+
+Required.
+
+Returns uploaded session-file content as a string. The supplied description says to call it separately for each relevant file when multiple attachments need to be read.
+
+The supplied instructions also say that image source references in returned content should be preserved exactly when used downstream.
+
+Status: **Tool contract confirmed; runtime pending.**
+
+---
+
+## 5.7 ExportBlob / Export File
+
+Input:
+
+```text
+fileId: string
+```
+
+Required.
+
+Output:
+
+- `Name`: blob file name
+- `Id`: blob file identifier/path
+
+The description states that the returned object should be included in the final response `attachments` array.
+
+The supplied configuration also appends the node output to `system.files`.
+
+Status: **Tool contract confirmed; runtime file-flow pending.**
+
+---
+
+# 6. Export Tool Contracts
+
+## 6.1 Export Excel V2
+
+Required top-level inputs:
+
+```text
+filename
+sheets
+```
+
+Each sheet requires:
+
+```text
+name
+ data
+```
+
+Supported cell values:
+
+- string
+- number
+- boolean
+- ISO date string
+- Excel formula beginning with `=`
+- null
+
+Sheet features captured:
+
+- headers
+- freeze panes
+- autofilter
+- tab color
+- column widths
+- header formatting
+- column-scoped number formats
+- conditional formatting
+- bar/column/line/pie charts
+
+The supplied tool definition appends the export result to `system.files`.
+
+Status: **Tool contract confirmed; runtime file handling pending.**
+
+## 6.2 Export PowerPoint V2
+
+Required:
+
+```text
+title
+slides
+```
+
+Optional:
+
+```text
+template
+```
+
+Captured templates:
+
+- default
+- gep
+- business_blue_black
+
+Captured slide layouts include title slide, section header, title/content combinations, two/three content, picture and chart variants. Supported layouts depend on the selected template; unsupported layouts must not be used.
+
+Status: **Tool contract confirmed; runtime pending.**
+
+## 6.3 Export PDF V2
+
+Required:
+
+```text
+title
+sections
+```
+
+Supports structured sections including:
+
+- cover
+- TOC
+- headings
+- paragraphs
+- bullet/numbered lists
+- tables
+- images
+- charts
+- spacers
+- page breaks
+- key/value blocks
+- callouts
+- endnotes
+- horizontal rules
+
+Also supports page size, orientation, margins, cover page, headers/footers, author and style overrides.
+
+Status: **Tool contract confirmed; runtime pending.**
+
+## 6.4 Export Word V2
+
+Required:
+
+```text
+title
+sections
+```
+
+Supports structured sections including cover, TOC, headings, paragraphs, lists, tables, images, editable native charts, hyperlinks, page/section breaks, bookmarks, cross-references, footnotes and custom styles.
+
+Also supports document metadata and TOC field updating on open.
+
+Status: **Tool contract confirmed; runtime pending.**
+
+## 6.5 Export HTML V2
+
+Required:
+
+```text
+title
+sections
+```
+
+Captured section types:
+
+- hero
+- section
+- text
+- bullet list
+- stat cards
+- table
+- chart
+- callout
+- code block
+- timeline
+- two-column
+- image
+- divider
+
+Themes:
+
+- light
+- dark
+- corporate
+
+Supports `accent_color` override.
+
+The tool description explicitly says it may be used proactively for structured dashboards/reports/visual pages.
+
+Status: **Tool contract confirmed; runtime pending.**
+
+---
+
+# 7. Extract Document to Markdown
+
+Input:
+
+```text
+fileId: string
+fileName: string
+bpc: optional string
+sessionId: optional string
+```
+
+Supported formats captured:
+
+- PDF
+- DOCX
+- PPTX
+- DOC
+- PPT
+- PNG/JPG/JPEG/GIF/WEBP/BMP/TIF/TIFF
+
+The supplied PDF pipeline includes:
+
+1. MarkItDown text extraction.
+2. PyMuPDF image extraction.
+3. Header/footer/watermark filtering.
+4. Composite image stitching.
+5. OCR for scanned pages.
+6. Vision-LLM image descriptions.
+7. Reading-order merge of text and image descriptions.
+8. Upload of the final Markdown/text result.
+
+Status: **Tool contract confirmed; runtime pending.**
+
+---
+
+# 8. System Tool Discovery / Execution
+
+The supplied system tools establish a strict three-step pattern:
+
+```text
+SearchSystemTools
+      ↓
+GetSystemToolSchema
+      ↓
+ExecuteSystemTool
+```
+
+## SearchSystemTools
+
+Input:
+
+```text
+intent: string
+```
+
+Purpose: discover relevant system tools. The description explicitly says not to guess tool names.
+
+## GetSystemToolSchema
+
+Input:
+
+```text
+toolNames: array<string>
+```
+
+Purpose: retrieve full parameter schema after discovery and before execution.
+
+## ExecuteSystemTool
+
+Inputs:
+
+```text
+tool_name: string
+arguments: object
+```
+
+The tool name must exactly match the discovered tool name and arguments must match the retrieved schema.
+
+Status: **Tool contract confirmed; runtime pending.**
+
+---
+
+# 9. Knowledge Tools - Current Evidence
+
+The following knowledge tools are captured:
+
+- `get_library_metadata`
+- `get_data_search_fields`
+- `search_knowledge`
+- `get_reference_file`
+- `get_table_schema`
+- `resolve_field_value`
+- `search_table_data`
+- `get-knowledge-workflow-instructions`
+
+The strongest current workflow rule is:
+
+```text
+get-knowledge-workflow-instructions
+        ↓
+get_library_metadata
+        ↓
+source-specific tools
+```
+
+For data-search sources:
 
 ```text
 get_library_metadata
@@ -445,264 +615,54 @@ get_data_search_fields
 execute_search_query
 ```
 
-### Advanced settings observed
+When the data-search schema contains `default_filters`, the supplied instructions describe them as mandatory access-control filters that must be retained for subsequent search execution.
 
-- Include Thoughts: ON
-- Response Filtering: Exclude Fields
-- Field Patterns: empty in captured example
-- Store Tool Output: OFF
-- Return Direct: OFF
-- Human-in-the-Loop: OFF
-
-### Status
-
-**Confirmed from supplied tool configuration screenshot.**
-
-### Critical implementation interpretation
-
-This tool is not merely schema discovery. When `default_filters` is configured, it is part of the access-control enforcement path and must be preserved for every subsequent search execution.
+`search_knowledge` is described as performing semantic retrieval, relevance ranking and possible reranking. Exact runtime ranking/reranking behaviour remains unverified.
 
 ---
 
-## 5.4 Search Knowledge
+# 10. Detailed Tool Runtime Queue
 
-**Tool name**
+The following require targeted runtime tests rather than further UI description:
 
-```text
-search_knowledge
-```
-
-### Purpose
-
-Performs semantic knowledge search using the supplied query. The configured description states that the function generates a text embedding for the query, retrieves relevant knowledge chunks from local and cloud-based sources, ranks them by relevance, and re-ranks when the requested result count is greater than the default threshold for improved accuracy.
-
-### Returned structure documented in the tool description
-
-The tool returns a `List[LlmKKnowledgeSearchResponse]` style list of knowledge items containing:
-
-- `id` - unique identifier of the knowledge item
-- `name` - name of the knowledge item
-- `path` - path or location of the knowledge item
-- `relevance` - relevance score against the query
-- `content` - content of the knowledge item, which may contain image source path references
-
-### Search-source behaviour captured
-
-- Supports searching across multiple knowledge sources, including cloud knowledge.
-- Results are limited to the top most relevant items by default, with optional reranking for enhanced precision.
-- The tool description explicitly cautions against calling the function repeatedly with the same query unless the queries are different. Repeated identical calls can create redundant processing and resource usage.
-
-### Parameters captured
-
-| Parameter | Type | Notes |
-|---|---|---|
-| `library_id` | `string` | Must be an ID returned by `get_library_metadata`. The description states: no modification, shortening, fabrication, assumption, or reuse from unverified memory. Re-verify against metadata exactly. |
-| `knowledge_id` | `string` | Unique identifier of the knowledge inside the library. Must be taken exactly from `get_library_metadata`; same no-fabrication / no-modification rule applies. |
-| `query` | `string` | Search query. |
-| `top_n` | `integer` | Optional number of top results to return. |
-
-### Image handling rules captured
-
-When search results contain image source path references, the configured instructions specify:
-
-1. **Prioritize images over text** when explaining steps or concepts; use images first.
-2. Preserve the exact image reference/path returned by the tool. Do not merge or alter paths.
-3. Introduce the image briefly, insert the image source path tag, then continue with transitional language.
-4. Include relevant images by default rather than requiring the user to explicitly request them.
-
-### Response / advanced settings observed
-
-From the supplied configuration screenshot:
-
-- Include Thoughts: ON
-- Response Filtering: Exclude Fields
-- Field Patterns: empty in captured example
-- Store Tool Output: OFF
-- Return Direct: OFF
-- Human-in-the-Loop: OFF
-
-### Status
-
-**Confirmed from supplied Search Knowledge tool configuration screenshots.**
-
-### Remaining validation
-
-- Exact default value and maximum allowed value for `top_n`.
-- Exact reranking threshold and ranking algorithm.
-- Exact retrieval-source selection behaviour when several knowledge sources are eligible.
-- Whether image references are guaranteed to be resolvable/renderable in every downstream context.
-- Exact error behaviour for stale or invalid `library_id` / `knowledge_id`.
-- Runtime behaviour when no relevant knowledge is found.
-- Whether duplicate-result suppression occurs across multiple sources.
-
----
-
-# 6. Knowledge Workflow - Current Working Model
-
-Based on the tools captured so far, the current working sequence is:
-
-```mermaid
-flowchart TD
-    U[User request] --> M[get_library_metadata]
-    M --> S{Relevant knowledge source?}
-    S -->|No| C[Continue with non-knowledge execution]
-    S -->|Data-search| F[get_data_search_fields]
-    S -->|Reference / document / semantic knowledge| K[Use only allowed target_functions]
-    F --> Q[execute_search_query]
-    Q --> R[Retrieved evidence]
-    K --> R
-    R --> A[Agent reasoning / synthesis]
-    S -->|Semantic knowledge search| SK[search_knowledge]
-    SK --> R
-```
-
-This flow should remain subordinate to the actual `target_functions` returned by metadata. Tool availability alone does not authorize a tool call for a particular knowledge source.
-
----
-
-# 7. Current Evidence-Governance Understanding
-
-The platform/tool evidence captured in this investigation supports the following implementation principles:
-
-1. Knowledge sources are identified before source-specific retrieval.
-2. The agent should not fabricate knowledge-source identifiers or schemas.
-3. Tool use is constrained by source metadata and `target_functions`.
-4. Data-search access-control filters must be retained exactly when configured.
-5. Human Input is for collecting information.
-6. Approval is for an explicit human decision gate.
-7. Decision Tree is for internal state-driven branching and mini-flows.
-8. Handoff is for transferring execution to another node.
-9. Semantic knowledge retrieval should use the configured `search_knowledge` contract and preserve source/image references exactly as returned.
-10. Repeated identical semantic-search calls should be avoided unless the query is materially different.
-
-These principles should be treated as implementation rules where backed by the captured platform instructions, while runtime-specific details remain subject to testing.
-
----
-
-# 8. Pending / Remaining Evidence Queue
-
-The following work remains based strictly on what has been captured so far.
-
-## 8.1 Node-level evidence still needed
-
-- Full detailed configuration and runtime behaviour of the **Agent node itself**.
-- Remaining core orchestration nodes not yet captured with screenshots/documentation.
-- Exact state-update semantics across nodes.
-- Exact output-variable semantics across nodes.
-- Node error / retry semantics.
-- Timeout and resume behaviour for HITL nodes.
-- Serialization of Decision Tree internals.
-
-## 8.2 Agent-tool evidence still needed
-
-Detailed screenshots / definitions have not yet been captured for:
-
-- Get Reference File
-- Get Table Schema
-- Resolve Field Value
-- Search Table Data
-- Recall Memory
-- Save Memory
-- Update Memory
-- Export PowerPoint V2
-- Export Excel V2
-- Export PDF V2
-- Export Word V2
-- Export HTML V2
-- Extract Document to Markdown
-- Web Search
-- Set In Memory
-- Get From Memory
-- Send Email
-- Conversation Attachment
-- Export File
-- Export to CSV
-- Export to Excel
-- Export to PowerPoint
-- Export to Word
-- Search System Tools
-- Get System Tool Schema
-- Execute System Tool
-- get-knowledge-workflow-instructions
-
-## 8.3 Tool catalogue tabs still needing capture
-
-- Shared tools
-- MCP tools
-- Quantum MCP tools
-
-The current register intentionally does **not** invent the contents of those tabs.
-
-## 8.4 Runtime validation still needed
-
-Even for tools whose UI has already been documented, runtime tests should verify:
-
-- Parameter validation.
-- Required vs optional behaviour.
-- Output shape.
-- Variable-path persistence.
-- State updates.
-- Include Thoughts impact.
-- Response filtering.
+- Agent output contract.
+- Handoff execution.
+- Approval decision/routing/resume.
+- Decision Tree internal state.
+- Flow Variable write/read/transform.
+- Variable Path.
 - Store Tool Output.
 - Return Direct.
-- Human-in-the-Loop pauses.
-- Error propagation.
-- Retry behaviour.
-- Resumption after pause.
-- Permissions / access-control behaviour.
-- Search Knowledge reranking and source-selection behaviour.
-- Search Knowledge image-reference handling.
+- Response Filtering.
+- Tool-level Human-in-the-Loop.
+- System tool discovery/execution.
+- Memory store/retrieve.
+- Web Search citation behaviour.
+- Email HTML/attachment flow.
+- Conversation attachment reading.
+- Export file result and `system.files` propagation.
+- Downstream consumption of exported files.
+- Knowledge initialization + metadata + source-specific execution.
+
+Do not create separate low-information tests for every checkbox. Use the eight high-information end-to-end tests defined in the runtime test log.
 
 ---
 
-# 9. Documentation Discipline Going Forward
+# 11. Documentation Rule
 
-For every newly supplied tool or node screenshot, add a dedicated subsection to this file containing:
+Never infer a runtime contract from a tool name alone.
 
-1. Exact tool/node name.
-2. Exact configured description.
-3. Parameters and types.
-4. Required/optional status.
-5. State updates.
-6. Output variables.
-7. Advanced settings.
-8. Routing / execution semantics where applicable.
-9. Known hard rules.
-10. Evidence status.
-11. Remaining runtime questions.
+For each newly captured node/tool, record:
 
-Do not infer missing parameters or behaviour from the tool name. Record only what is evidenced, and mark interpretation or runtime assumptions explicitly.
-
----
-
-# 10. Change Log
-
-### 2026-08-23
-
-Added the first consolidated QI Studio node and Agent-tool evidence register covering:
-
-- Decision Tree node
-- Approval node
-- Human Input node
-- Agent tool-management UI model
-- System tool inventory visible in supplied screenshots
-- Handoff
-- Get Library Metadata
-- Get Data Search Fields
-- Knowledge workflow and access-control rules
-- Pending evidence and runtime-validation queue
-
-### 2026-08-23 - Search Knowledge capture
-
-Added detailed evidence for `search_knowledge`, including:
-
-- Semantic embedding + retrieval + relevance ranking behaviour
-- Multi-source and cloud-knowledge search support
-- `library_id`, `knowledge_id`, `query`, and `top_n` parameters
-- Exact ID-governance rules
-- Result fields: `id`, `name`, `path`, `relevance`, `content`
-- Repeated-identical-query caution
-- Image-priority, image-reference preservation, and default-image-inclusion instructions
-- Current advanced settings shown in the UI
-- Runtime questions still requiring validation
+1. exact name;
+2. exact description;
+3. inputs/types;
+4. required/optional fields;
+5. State Update;
+6. Variable Path;
+7. Output Variables;
+8. advanced settings;
+9. routing/continuation behaviour;
+10. hard rules from the supplied tool description;
+11. runtime evidence;
+12. unresolved questions.
