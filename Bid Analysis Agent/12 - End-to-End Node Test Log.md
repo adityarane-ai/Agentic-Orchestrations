@@ -1,6 +1,6 @@
 # 12. End-to-End Node Test Log
 
-**Document Version:** 1.0  
+**Document Version:** 1.1  
 **Status:** Active runtime test record  
 **Scope:** End-to-end validation of QI Studio orchestration nodes, variable propagation, node outputs and final Output behaviour.  
 **Started:** 23 Aug 2026
@@ -219,7 +219,7 @@ The Output node completed successfully and produced:
   "success": true,
   "output": {
     "messages": "START_TEST",
-    "selectedAgentId": "...",
+    "selectedAgentId": "467116a9-92a6-4d3e-bc25-082dc90968c4",
     "selectedAgentName": "rfp-qualitative-agent"
   }
 }
@@ -231,7 +231,13 @@ The important field is:
 output.messages = "START_TEST"
 ```
 
-The final visible response therefore came from the explicitly configured Flow Variable.
+The actual user-facing result was:
+
+```text
+User Window Output: START_TEST
+```
+
+This confirms that the explicitly configured Flow Variable was resolved into the final user-visible response.
 
 ### Output conclusion
 
@@ -254,6 +260,7 @@ The Output node can consume an explicitly configured Flow Variable and expose it
 | Flow variable contains answer | `START_TEST` | `START_TEST` | PASS |
 | Output consumes Flow Variable | Explicit mapping | Confirmed | PASS |
 | Output returns response | `START_TEST` | `START_TEST` | PASS |
+| User Window displays response | `START_TEST` | `START_TEST` | PASS |
 | Workflow completes | `completed` | `completed` | PASS |
 
 ### Overall result
@@ -278,6 +285,8 @@ flow.startTestResponse
 Output node
       ↓
 output.messages
+      ↓
+User Window
 ```
 
 ## 8.2 Output must have an explicit response source
@@ -506,6 +515,7 @@ flowchart TD
     FLOW --> DOWN[Downstream nodes]
     DOWN --> FLOW
     FLOW --> OUT[Output]
+    OUT --> USER[User Window]
 
     CH[Conversation History] -. conversational context .-> DOWN
     RT[Runtime metadata] -. execution context .-> DOWN
@@ -513,7 +523,7 @@ flowchart TD
 
 ### Current architectural rule
 
-> **System and Runtime provide engine context. Flow Variables carry workflow state. Conversation History carries conversational context. Nodes can expose runtime outputs, but downstream data paths should be explicit. Output requires an explicit response source.**
+> **System and Runtime provide engine context. Flow Variables carry workflow state. Conversation History carries conversational context. Nodes can expose runtime outputs, but downstream data paths should be explicit. Output requires an explicit response source, which is then surfaced to the User Window.**
 
 ---
 
@@ -528,3 +538,83 @@ When later evidence conflicts with an earlier assumption:
 5. Never silently delete a failed test that explains why the current design exists.
 
 This keeps the repository useful as a reverse-engineering record rather than merely a final-state design document.
+
+---
+
+# 14. Latest Runtime Evidence Record - 23 Aug 2026 14:17:54 UTC
+
+The latest execution returned:
+
+```json
+{
+  "flow": {
+    "startTestResponse": ""
+  },
+  "system": {
+    "userQuery": "hello",
+    "humanInput": "START_TEST"
+  },
+  "nodes": {
+    "start": {
+      "success": true
+    },
+    "human_input_0": {
+      "input": "START_TEST",
+      "variableTarget": "system.humanInput",
+      "success": true
+    },
+    "output_0": {
+      "success": true,
+      "output": {
+        "messages": "START_TEST"
+      }
+    }
+  },
+  "status": "completed"
+}
+```
+
+The User Window displayed:
+
+```text
+START_TEST
+```
+
+### Important correction to the test record
+
+This execution demonstrates that **Output returned `START_TEST` even though the final `flow.startTestResponse` shown in the execution envelope was empty**.
+
+Therefore, the earlier assumption that this particular run proves a complete runtime path of:
+
+```text
+Human Input
+    ↓
+flow.startTestResponse
+    ↓
+Output
+```
+
+is too strong based on this latest evidence.
+
+The evidence now supports two separate confirmed facts:
+
+1. **Human Input can write to a Flow Variable when configured with `variableTarget = flow.startTestResponse`**, as demonstrated by the preceding successful execution.
+2. **Output can produce `START_TEST` from the current execution even when the displayed final `flow.startTestResponse` is empty**, so the exact Output resolution path in this run is not yet fully proven.
+
+### Revised status
+
+**TEST-START-001: PASS - Runtime Partial**
+
+The START and Human Input behaviours are runtime-confirmed. Final Output visibility is runtime-confirmed. However, this latest execution means the exact variable-to-output linkage requires one additional controlled test.
+
+### Required follow-up
+
+Run a controlled test in which:
+
+- Human Input targets `flow.startTestResponse`.
+- No alternate response source is configured anywhere.
+- Output is explicitly configured to consume only `flow.startTestResponse`.
+- Capture the full execution JSON immediately before Output and after Output.
+- Confirm that `flow.startTestResponse == "START_TEST"` at the point Output resolves it.
+
+Only then should the complete Flow Variable → Output linkage be marked **Runtime Confirmed**.
