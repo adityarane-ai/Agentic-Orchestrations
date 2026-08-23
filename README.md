@@ -27,44 +27,65 @@ See [`Bid Analysis Agent/README.md`](Bid%20Analysis%20Agent/README.md) for the i
 
 ## Current platform reverse-engineering documentation
 
-The implementation investigation is maintained separately from the business architecture so that platform facts, runtime observations and open questions are not mixed with the frozen solution design.
+The platform investigation is maintained separately from the business architecture so that platform facts, runtime observations, test evidence and open questions are not mixed with the frozen solution design.
 
 Key documents:
 
-- [`08 – Flow Variables.md`](Bid%20Analysis%20Agent/08%20%E2%80%93%20Flow%20Variables.md) — workflow state inventory, ownership rules and data contracts.
-- [`10 - QI Studio Nodes, Agent Tools & Verification Register.md`](Bid%20Analysis%20Agent/10%20-%20QI%20Studio%20Nodes%2C%20Agent%20Tools%20%26%20Verification%20Register.md) — node/tool evidence register and verification status.
-- [`11 - Runtime Variables, State & End-to-End Test Playbook.md`](Bid%20Analysis%20Agent/11%20-%20Runtime%20Variables%2C%20State%20%26%20End-to-End%20Test%20Playbook.md) — current variable-scope model, START/Human Input findings, output contract lessons and repeatable runtime testing method.
-- [`12 - End-to-End Node Test Log.md`](Bid%20Analysis%20Agent/12%20-%20End-to-End%20Node%20Test%20Log.md) — actual runtime executions, pass/fail evidence, regression cases and the sequence of upcoming node tests.
+- [`08 – Flow Variables.md`](Bid%20Analysis%20Agent/08%20%E2%80%93%20Flow%20Variables.md) — workflow-state inventory and business data contracts.
+- [`10 - QI Studio Nodes, Agent Tools & Verification Register.md`](Bid%20Analysis%20Agent/10%20-%20QI%20Studio%20Nodes%2C%20Agent%20Tools%20%26%20Verification%20Register.md) — node/tool UI evidence and supplied tool contracts.
+- [`11 - Runtime Variables, State & End-to-End Test Playbook.md`](Bid%20Analysis%20Agent/11%20-%20Runtime%20Variables%2C%20State%20%26%20End-to-End%20Test%20Playbook.md) — current state model and reusable test methodology.
+- [`12 - End-to-End Node Test Log.md`](Bid%20Analysis%20Agent/12%20-%20End-to-End%20Node%20Test%20Log.md) — actual execution evidence and regression tests.
+- [`13 - Current Understanding & Verification Ledger.md`](Bid%20Analysis%20Agent/13%20-%20Current%20Understanding%20%26%20Verification%20Ledger.md) — **canonical current understanding, conflicts, and pending verification queue**.
 
-### Latest runtime finding
+## Current runtime findings
 
-The first completed end-to-end test confirms this data path:
+The strongest runtime evidence currently confirms this explicit response path:
 
 ```text
 START
   ↓
-HUMAN INPUT
+HUMAN INPUT → system.humanInput
   ↓
-Flow Variable
+OUTPUT → {{system.humanInput}}
   ↓
-OUTPUT
+User Window
 ```
 
-Specifically, the Human Input response `START_TEST` was written to `flow.startTestResponse`, the workflow completed successfully, and the Output node returned `START_TEST` when explicitly configured to consume that Flow Variable.
+The tested response `START_TEST` survived the HITL pause/resume, was present in `system.humanInput`, was returned as `output.messages`, and was displayed to the user.
 
-An earlier run also established the failure mode where the workflow completes but the Output node returns `No response content found in the execution result. Please try again.` because no explicit response source was configured.
+A separate earlier execution showed a Flow Variable target containing `START_TEST`, but the Flow Variable → Output linkage remains under controlled verification rather than being treated as conclusively isolated. Do not infer that path from the System-variable test.
 
-### Platform evidence discipline
+An earlier run also established the regression case where the workflow completed but the Output layer returned `No response content found in the execution result. Please try again.` because no explicit response source had been configured.
+
+## Knowledge workflow correction
+
+A later supplied platform tool definition explicitly requires:
+
+```text
+get-knowledge-workflow-instructions
+        ↓
+get_library_metadata
+        ↓
+source-specific knowledge tools
+```
+
+Therefore any older wording that describes `get_library_metadata` as the first knowledge call is superseded.
+
+## Evidence discipline
 
 The repository distinguishes between:
 
-1. **Confirmed** — explicitly shown in QI Studio UI or supplied platform documentation.
-2. **Working understanding** — strong interpretation that still needs validation.
-3. **Runtime confirmed** — demonstrated through an actual execution test.
-4. **Pending evidence** — capability identified but not yet sufficiently evidenced.
+1. **Confirmed** — explicitly shown in supplied QI Studio UI or platform documentation.
+2. **Runtime Confirmed** — demonstrated in an actual end-to-end execution.
+3. **Working Understanding** — strong interpretation that still needs validation.
+4. **Pending Verification** — capability or question without sufficient evidence.
 5. **Contradicted** — a previous assumption disproven by later evidence.
-6. **Superseded** — an earlier test/design remains historically useful but has been replaced by stronger evidence.
+6. **Superseded** — an earlier statement retained for history but replaced by stronger evidence.
 
-### Current state-model principle
+Never upgrade a capability to Runtime Confirmed solely because a UI option exists, a node returns `success: true`, or a value appears somewhere in execution JSON.
 
-> **System and Runtime provide engine context. Flow Variables carry workflow state. Conversation History carries conversational context. Node execution, node output and final response are separate concerns. Output requires an explicit response source.**
+## Current state-model principle
+
+> **System and Runtime provide engine context. Flow Variables carry workflow-owned state. Conversation History carries conversational context. Nodes can expose runtime outputs, but downstream data paths should be explicit. Output requires an explicit response source.**
+
+For the current consolidated model and pending work, use the [Current Understanding & Verification Ledger](Bid%20Analysis%20Agent/13%20-%20Current%20Understanding%20%26%20Verification%20Ledger.md).
